@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="AstroJournal" />
+<meta name="theme-color" content="#04060f" />
+<title>AstroJournal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet" />
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #04060f; --surface: #080d1a; --surface2: #0d1426;
+  --border: rgba(100,140,220,0.12); --accent: #4a7cf7; --accent2: #a78bfa;
+  --gold: #c9a84c; --text: #d4ddf7; --muted: #6278a8;
+  --danger: #e05a6a; --success: #4fd1a0;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+body { background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; min-height: 100vh; overflow-x: hidden; padding-top: var(--safe-top); }
+#root::before {
+  content: ''; position: fixed; inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 50% 40%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 10%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 60%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 20% 90%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 85%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 92% 35%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 45% 15%, rgba(200,210,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 75% 80%, rgba(200,210,255,0.3) 0%, transparent 100%);
+  pointer-events: none; z-index: 0;
+}
+.app { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 24px 20px calc(60px + var(--safe-bottom)); }
+.header { display: flex; align-items: baseline; gap: 20px; margin-bottom: 48px; padding-bottom: 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.header-title { font-family: var(--font-display); font-size: 2.8rem; font-weight: 300; letter-spacing: 0.05em; color: #fff; line-height: 1; }
+.header-title em { font-style: italic; color: var(--accent2); }
+.header-sub { font-size: 11px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-left: auto; }
+.tabs { display: flex; gap: 2px; margin-bottom: 36px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 3px; width: fit-content; }
+.tab { padding: 7px 20px; border-radius: 3px; cursor: pointer; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); transition: all 0.2s; border: none; background: none; font-family: var(--font-mono); }
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--surface2); color: var(--accent); border: 1px solid var(--border); }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+@media(min-width:600px){ .gallery { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; cursor: pointer; transition: all 0.25s; position: relative; }
+.card:hover { border-color: rgba(74,124,247,0.35); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+.card-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--surface2); }
+.card-thumb-placeholder { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: var(--surface2); font-size: 2.5rem; }
+.card-info { padding: 12px; }
+.card-name { font-family: var(--font-display); font-size: 1.1rem; font-weight: 400; color: #fff; margin-bottom: 4px; }
+.card-meta { font-size: 11px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
+.card-badge { position: absolute; top: 8px; right: 8px; background: rgba(4,6,15,0.85); border: 1px solid var(--border); border-radius: 3px; padding: 2px 7px; font-size: 10px; color: var(--gold); }
+.card-count { position: absolute; top: 8px; left: 8px; background: rgba(74,124,247,0.25); border: 1px solid rgba(74,124,247,0.3); border-radius: 3px; padding: 2px 7px; font-size: 10px; color: var(--accent); }
+.add-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; border: 1px dashed rgba(74,124,247,0.35); border-radius: 6px; aspect-ratio: 1 / 0.75; cursor: pointer; color: var(--muted); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; transition: all 0.2s; min-height: 120px; }
+.add-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(74,124,247,0.05); }
+.add-btn-full { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--accent); border: none; border-radius: 4px; padding: 10px 20px; cursor: pointer; color: #fff; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; transition: all 0.2s; }
+.add-btn-full:hover { background: #3d6de0; }
+.detail { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.back-btn { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 7px 14px; color: var(--muted); font-family: var(--font-mono); font-size: 11px; cursor: pointer; letter-spacing: 0.1em; margin-bottom: 24px; transition: all 0.2s; }
+.back-btn:hover { color: var(--text); }
+.detail-hero { width: 100%; max-height: 480px; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); display: block; margin-bottom: 28px; }
+.detail-hero-placeholder { width: 100%; height: 260px; display: flex; align-items: center; justify-content: center; background: var(--surface2); border-radius: 6px; border: 1px solid var(--border); font-size: 5rem; margin-bottom: 28px; }
+.detail-title { font-family: var(--font-display); font-size: 2.2rem; font-weight: 300; color: #fff; margin-bottom: 6px; line-height: 1.2; }
+.detail-title em { color: var(--accent2); font-style: italic; }
+.detail-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 20px 0; }
+@media(min-width:600px){ .detail-grid { grid-template-columns: 1fr 1fr; gap: 20px; } }
+.detail-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 18px; }
+.panel-title { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.data-row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid rgba(100,140,220,0.06); gap: 12px; }
+.data-row:last-child { border-bottom: none; }
+.data-label { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+.data-value { color: var(--text); font-size: 12px; text-align: right; word-break: break-word; }
+.data-value.highlight { color: var(--gold); }
+.facts-box { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent2); border-radius: 6px; padding: 18px; margin: 18px 0; font-family: var(--font-display); font-size: 1.05rem; font-weight: 300; line-height: 1.8; color: #b8c8f0; font-style: italic; }
+.sessions-header { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 12px; flex-wrap: wrap; gap: 10px; }
+.sessions-title { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+.session-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-bottom: 10px; }
+.session-date { font-size: 11px; color: var(--accent); margin-bottom: 10px; }
+.session-img { width: 80px; height: 60px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); float: right; margin-left: 12px; cursor: pointer; }
+.overlay { position: fixed; inset: 0; background: rgba(4,6,15,0.93); z-index: 100; display: flex; align-items: flex-end; justify-content: center; padding: 0; animation: fadeIn 0.2s; }
+@media(min-width:600px){ .overlay { align-items: center; padding: 20px; } }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px 12px 0 0; padding: 24px 20px calc(24px + var(--safe-bottom)); width: 100%; max-height: 92vh; overflow-y: auto; }
+@media(min-width:600px){ .modal { border-radius: 8px; max-width: 560px; padding: 28px; } }
+.modal-title { font-family: var(--font-display); font-size: 1.7rem; font-weight: 300; color: #fff; margin-bottom: 20px; }
+.form-row { margin-bottom: 14px; }
+.form-label { display: block; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.form-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; color: var(--text); font-family: var(--font-mono); font-size: 14px; outline: none; transition: border 0.2s; -webkit-appearance: none; }
+.form-input:focus { border-color: rgba(74,124,247,0.5); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+.btn-cancel { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 10px 18px; color: var(--muted); font-family: var(--font-mono); font-size: 12px; cursor: pointer; }
+.btn-save { background: var(--accent); border: none; border-radius: 4px; padding: 10px 22px; color: #fff; font-family: var(--font-mono); font-size: 12px; cursor: pointer; }
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.img-upload { border: 1px dashed rgba(74,124,247,0.3); border-radius: 4px; padding: 18px; text-align: center; cursor: pointer; color: var(--muted); font-size: 12px; transition: all 0.2s; }
+.img-upload:hover { border-color: var(--accent); color: var(--accent); }
+.img-preview { width: 100%; height: 110px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); margin-top: 10px; display: block; }
+.wish-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; cursor: pointer; transition: all 0.25s; }
+.wish-card:hover { border-color: rgba(167,139,250,0.35); transform: translateY(-2px); }
+.wish-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; background: var(--surface2); display: block; }
+.wish-thumb-ph { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: var(--surface2); font-size: 2.5rem; }
+.wish-info { padding: 12px; }
+.wish-name { font-family: var(--font-display); font-size: 1.1rem; color: var(--accent2); margin-bottom: 4px; }
+.wish-meta { font-size: 11px; color: var(--muted); }
+.lightbox { position: fixed; inset: 0; background: rgba(4,6,15,0.97); z-index: 200; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+.lightbox img { max-width: 96vw; max-height: 96vh; object-fit: contain; border-radius: 4px; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty-state-icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.5; }
+.empty-state p { font-family: var(--font-display); font-size: 1.2rem; font-weight: 300; color: var(--muted); line-height: 1.7; }
+.tag-captured { display: inline-block; background: rgba(79,209,160,0.1); border: 1px solid rgba(79,209,160,0.25); border-radius: 3px; padding: 2px 8px; font-size: 10px; color: var(--success); letter-spacing: 0.1em; }
+.tag-wish { display: inline-block; background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.25); border-radius: 3px; padding: 2px 8px; font-size: 10px; color: var(--accent2); letter-spacing: 0.1em; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+.promote-btn { background: rgba(79,209,160,0.1); border: 1px solid rgba(79,209,160,0.25); border-radius: 4px; padding: 8px 16px; color: var(--success); font-family: var(--font-mono); font-size: 11px; cursor: pointer; }
+.delete-btn { background: rgba(224,90,106,0.1); border: 1px solid rgba(224,90,106,0.25); border-radius: 4px; padding: 8px 16px; color: var(--danger); font-family: var(--font-mono); font-size: 11px; cursor: pointer; }
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.section-label { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Storage ──────────────────────────────────────
+const STORAGE_KEY = “astrojournal_v1”;
+function loadState() {
+try {
+const raw = localStorage.getItem(STORAGE_KEY);
+if (raw) return JSON.parse(raw);
+} catch {}
+return null;
+}
+function saveState(targets, wishlist) {
+try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ targets, wishlist })); } catch {}
+}
+
+// ── API ──────────────────────────────────────────
+async function callClaude(prompt) {
+const res = await fetch(“https://api.anthropic.com/v1/messages”, {
+method: “POST”,
+headers: { “Content-Type”: “application/json” },
+body: JSON.stringify({
+model: “claude-sonnet-4-20250514”,
+max_tokens: 1000,
+messages: [{ role: “user”, content: prompt }],
+}),
+});
+const data = await res.json();
+return data.content?.[0]?.text || “”;
+}
+
+async function fetchTargetData(name) {
+const prompt = `You are an astronomy expert. For the target "${name}" (could be a planet, Messier object, NGC object, star cluster, nebula, galaxy, etc.): Return ONLY a JSON object (no markdown, no preamble, no backticks): {"facts":"A single engaging paragraph (3-5 sentences) with interesting facts for an astrophotographer.","magnitude":"Apparent magnitude value only e.g. 5.8 or range 3.2-4.5 or N/A","angularSize":"Angular size e.g. 45' x 30' or 3.5deg or N/A"}`;
+try {
+const text = await callClaude(prompt);
+return JSON.parse(text.replace(/`json|`/g, “”).trim());
+} catch {
+return { facts: “Could not retrieve facts for this target.”, magnitude: “N/A”, angularSize: “N/A” };
+}
+}
+
+async function fetchWishlistImage(name) {
+const prompt = `Provide a direct publicly accessible image URL for the astronomical object "${name}". Use NASA, ESA, or Wikimedia Commons. Return ONLY JSON (no markdown): {"imageUrl":"https://..."}. If unsure of a working URL return {"imageUrl":""}`;
+try {
+const text = await callClaude(prompt);
+const { imageUrl } = JSON.parse(text.replace(/`json|`/g, “”).trim());
+return imageUrl || “”;
+} catch { return “”; }
+}
+
+// ── Helpers ──────────────────────────────────────
+function fmtDate(d) {
+if (!d) return “—”;
+return new Date(d + “T00:00:00”).toLocaleDateString(“en-GB”, { day:“numeric”, month:“short”, year:“numeric” });
+}
+function toBase64(file) {
+return new Promise((res, rej) => {
+const r = new FileReader();
+r.onload = () => res(r.result);
+r.onerror = rej;
+r.readAsDataURL(file);
+});
+}
+
+const INIT_TARGETS = [
+{ id:“demo1”, name:“M42 – Orion Nebula”, facts:“The Orion Nebula is one of the most scrutinised and photographed objects in the night sky, sitting just 1,344 light-years from Earth. It is an active stellar nursery, with hundreds of young stars forming within its glowing clouds of ionised hydrogen. The famous Trapezium cluster at its core illuminates the surrounding gas and dust, producing spectacular pink and violet hues in long-exposure images. At around 40 light-years across, it spans more than a degree of sky and is visible to the naked eye as the middle star of Orion’s sword.”, magnitude:“4.0”, angularSize:“65’ × 60’”, sessions:[{ id:“s1”, telescope:“Celestron EdgeHD 8"”, camera:“ZWO ASI2600MC Pro”, subframes:“120”, subframeTime:“120s”, filter:“Dual-narrowband Ha/OIII”, date:“2024-01-14”, image:null }], type:“captured” }
+];
+const INIT_WISHLIST = [
+{ id:“w1”, name:“M31 – Andromeda Galaxy”, facts:””, magnitude:””, angularSize:””, imageUrl:””, type:“wishlist” }
+];
+
+// ── Sub-components ───────────────────────────────
+function ImageUpload({ value, onChange }) {
+const ref = useRef();
+return (
+<div>
+<div className=“img-upload” onClick={() => ref.current.click()}>
+{value ? “Tap to change image” : “Tap to upload image”}<br/>
+<span style={{fontSize:10,opacity:0.6}}>JPG · PNG · TIFF</span>
+<input ref={ref} type=“file” accept=“image/*” style={{display:“none”}}
+onChange={async e => { if (e.target.files[0]) onChange(await toBase64(e.target.files[0])); }} />
+</div>
+{value && <img src={value} className="img-preview" alt="preview" />}
+</div>
+);
+}
+
+function SessionModal({ onSave, onClose }) {
+const [f, setF] = useState({ telescope:””, camera:””, subframes:””, subframeTime:””, filter:””, date:””, image:null });
+const set = (k,v) => setF(p => ({…p,[k]:v}));
+return (
+<div className="overlay" onClick={onClose}>
+<div className=“modal” onClick={e => e.stopPropagation()}>
+<div className="modal-title">Add imaging session</div>
+<div className="form-grid">
+{[[“Telescope”,“telescope”,“text”],[“Camera”,“camera”,“text”],[“Subframes”,“subframes”,“number”],[“Duration (e.g. 120s)”,“subframeTime”,“text”],[“Filter”,“filter”,“text”],[“Date”,“date”,“date”]].map(([lbl,key,type]) => (
+<div className="form-row" key={key}>
+<label className="form-label">{lbl}</label>
+<input className=“form-input” type={type} value={f[key]} onChange={e=>set(key,e.target.value)} />
+</div>
+))}
+</div>
+<div className="form-row" style={{marginTop:8}}>
+<label className="form-label">Image (optional)</label>
+<ImageUpload value={f.image} onChange={v=>set(“image”,v)} />
+</div>
+<div className="modal-actions">
+<button className="btn-cancel" onClick={onClose}>Cancel</button>
+<button className=“btn-save” onClick={() => onSave(f)}>Save session</button>
+</div>
+</div>
+</div>
+);
+}
+
+function AddTargetModal({ onSave, onClose, type }) {
+const [name, setName] = useState(””);
+const [loading, setLoading] = useState(false);
+const [f, setF] = useState({ telescope:””, camera:””, subframes:””, subframeTime:””, filter:””, date:””, image:null });
+const setField = (k,v) => setF(p=>({…p,[k]:v}));
+
+const save = async () => {
+if (!name.trim()) return;
+setLoading(true);
+const data = await fetchTargetData(name.trim());
+const imageUrl = type === “wishlist” ? await fetchWishlistImage(name.trim()) : “”;
+const id = Date.now().toString();
+if (type === “captured”) {
+onSave({ id, name:name.trim(), …data, sessions:[{id:Date.now().toString(),…f}], type:“captured” });
+} else {
+onSave({ id, name:name.trim(), …data, imageUrl, type:“wishlist” });
+}
+};
+
+return (
+<div className="overlay" onClick={onClose}>
+<div className=“modal” onClick={e=>e.stopPropagation()}>
+<div className="modal-title">{type===“captured” ? “Add captured target” : “Add wishlist target”}</div>
+<div className="form-row">
+<label className="form-label">Target name</label>
+<input className=“form-input” placeholder=“e.g. M42, NGC 7293, Jupiter” value={name} onChange={e=>setName(e.target.value)} autoFocus />
+</div>
+{type === “captured” && <>
+<hr className="divider"/>
+<div className="section-label">First imaging session</div>
+<div className="form-grid">
+{[[“Telescope”,“telescope”,“text”],[“Camera”,“camera”,“text”],[“Subframes”,“subframes”,“number”],[“Duration”,“subframeTime”,“text”],[“Filter”,“filter”,“text”],[“Date”,“date”,“date”]].map(([lbl,key,tp]) => (
+<div className="form-row" key={key}>
+<label className="form-label">{lbl}</label>
+<input className=“form-input” type={tp} value={f[key]} onChange={e=>setField(key,e.target.value)}/>
+</div>
+))}
+</div>
+<div className="form-row" style={{marginTop:8}}>
+<label className="form-label">Image (optional)</label>
+<ImageUpload value={f.image} onChange={v=>setField(“image”,v)}/>
+</div>
+</>}
+<div className="modal-actions">
+<button className="btn-cancel" onClick={onClose}>Cancel</button>
+<button className="btn-save" onClick={save} disabled={loading||!name.trim()}>
+{loading ? <span className="spinner"/> : “Save & generate”}
+</button>
+</div>
+</div>
+</div>
+);
+}
+
+function Lightbox({ src, onClose }) {
+return <div className="lightbox" onClick={onClose}><img src={src} alt="full"/></div>;
+}
+
+// ── Gallery ──────────────────────────────────────
+function Gallery({ targets, onSelect, onAdd }) {
+return (
+<div>
+<div className="gallery">
+{targets.map(t => {
+const thumb = […(t.sessions||[])].reverse().find(s=>s.image)?.image;
+return (
+<div key={t.id} className=“card” onClick={()=>onSelect(t.id)}>
+{thumb ? <img src={thumb} className="card-thumb" alt={t.name}/> : <div className="card-thumb-placeholder">🌌</div>}
+{t.sessions?.length > 1 && <div className="card-count">{t.sessions.length}×</div>}
+{t.magnitude && t.magnitude!==“N/A” && <div className="card-badge">mag {t.magnitude}</div>}
+<div className="card-info">
+<div className="card-name">{t.name}</div>
+<div className="card-meta">
+{t.angularSize && t.angularSize!==“N/A” && <span>{t.angularSize}</span>}
+{t.sessions?.[0]?.date && <span>{fmtDate(t.sessions[0].date)}</span>}
+</div>
+</div>
+</div>
+);
+})}
+<div className="add-btn" onClick={onAdd}>+ Add target</div>
+</div>
+{targets.length===0 && <div className="empty-state"><div className="empty-state-icon">🔭</div><p>No captured targets yet.<br/>Add your first astrophotograph.</p></div>}
+</div>
+);
+}
+
+// ── Detail ───────────────────────────────────────
+function DetailView({ target, onBack, onAddSession, onDelete }) {
+const [sessionModal, setSessionModal] = useState(false);
+const [lightbox, setLightbox] = useState(null);
+const latestImg = […(target.sessions||[])].reverse().find(s=>s.image)?.image;
+const totalMins = (target.sessions||[]).reduce((acc,s) => {
+const secs = parseFloat(s.subframeTime) * parseInt(s.subframes);
+return acc + (isNaN(secs) ? 0 : secs / 60);
+}, 0);
+const last = (target.sessions||[]).slice(-1)[0];
+
+return (
+<div className="detail">
+<button className="back-btn" onClick={onBack}>← Back</button>
+{latestImg
+? <img src={latestImg} className=“detail-hero” alt={target.name} onClick={()=>setLightbox(latestImg)} style={{cursor:“zoom-in”}}/>
+: <div className="detail-hero-placeholder">🌌</div>}
+<div style={{display:“flex”,alignItems:“baseline”,gap:12,flexWrap:“wrap”,marginBottom:8}}>
+<div className="detail-title">
+{target.name.includes(”–”) ? <>{target.name.split(”–”)[0].trim()} <em>– {target.name.split(”–”)[1].trim()}</em></> : target.name}
+</div>
+<span className="tag-captured">CAPTURED</span>
+</div>
+<div className="detail-grid">
+<div className="detail-panel">
+<div className="panel-title">Object data</div>
+<div className="data-row"><span className="data-label">Magnitude</span><span className="data-value highlight">{target.magnitude||”—”}</span></div>
+<div className="data-row"><span className="data-label">Angular size</span><span className="data-value highlight">{target.angularSize||”—”}</span></div>
+<div className="data-row"><span className="data-label">Sessions</span><span className="data-value">{target.sessions?.length||0}</span></div>
+{totalMins>0 && <div className="data-row"><span className="data-label">Total integration</span><span className="data-value">{totalMins.toFixed(1)} min</span></div>}
+</div>
+{last && <div className="detail-panel">
+<div className="panel-title">Latest session</div>
+<div className="data-row"><span className="data-label">Date</span><span className="data-value">{fmtDate(last.date)}</span></div>
+<div className="data-row"><span className="data-label">Telescope</span><span className="data-value">{last.telescope||”—”}</span></div>
+<div className="data-row"><span className="data-label">Camera</span><span className="data-value">{last.camera||”—”}</span></div>
+<div className="data-row"><span className="data-label">Subframes</span><span className="data-value">{last.subframes||”—”} × {last.subframeTime||”—”}</span></div>
+<div className="data-row"><span className="data-label">Filter</span><span className="data-value">{last.filter||”—”}</span></div>
+</div>}
+</div>
+{target.facts && <div className="facts-box">{target.facts}</div>}
+<div className="sessions-header">
+<div className="sessions-title">All sessions ({target.sessions?.length||0})</div>
+<button className=“add-btn-full” onClick={()=>setSessionModal(true)}>+ Add session</button>
+</div>
+{(target.sessions||[]).map((s,i) => (
+<div key={s.id} className="session-card">
+{s.image && <img src={s.image} className=“session-img” alt=”” onClick={()=>setLightbox(s.image)}/>}
+<div className="session-date">{fmtDate(s.date)} · Session {i+1}</div>
+<div className="data-row"><span className="data-label">Telescope</span><span className="data-value">{s.telescope||”—”}</span></div>
+<div className="data-row"><span className="data-label">Camera</span><span className="data-value">{s.camera||”—”}</span></div>
+<div className="data-row"><span className="data-label">Subframes</span><span className="data-value">{s.subframes||”—”} × {s.subframeTime||”—”}</span></div>
+<div className="data-row"><span className="data-label">Filter</span><span className="data-value">{s.filter||”—”}</span></div>
+</div>
+))}
+<div style={{marginTop:20}}>
+<button className=“delete-btn” onClick={()=>onDelete(target.id)}>Delete target</button>
+</div>
+{sessionModal && <SessionModal onSave={s=>{onAddSession(target.id,s);setSessionModal(false);}} onClose={()=>setSessionModal(false)}/>}
+{lightbox && <Lightbox src={lightbox} onClose={()=>setLightbox(null)}/>}
+</div>
+);
+}
+
+// ── Wishlist ─────────────────────────────────────
+function WishlistView({ items, onAdd, onSelect }) {
+return (
+<div>
+<div className="gallery">
+{items.map(t => (
+<div key={t.id} className=“wish-card” onClick={()=>onSelect(t.id)}>
+{t.imageUrl
+? <img src={t.imageUrl} className=“wish-thumb” alt={t.name} onError={e=>{e.target.style.display=“none”;}}/>
+: <div className="wish-thumb-ph">🔭</div>}
+<div className="wish-info">
+<div className="wish-name">{t.name}</div>
+<div className="wish-meta">
+{t.magnitude && t.magnitude!==“N/A” && <span>mag {t.magnitude}</span>}
+{t.angularSize && t.angularSize!==“N/A” && <span> · {t.angularSize}</span>}
+</div>
+</div>
+</div>
+))}
+<div className="add-btn" onClick={onAdd}>+ Add to wishlist</div>
+</div>
+{items.length===0 && <div className="empty-state"><div className="empty-state-icon">✨</div><p>No wishlist targets yet.<br/>Add objects you dream of capturing.</p></div>}
+</div>
+);
+}
+
+function WishDetail({ target, onBack, onDelete, onPromote }) {
+return (
+<div className="detail">
+<button className="back-btn" onClick={onBack}>← Back</button>
+{target.imageUrl
+? <img src={target.imageUrl} className=“detail-hero” alt={target.name} onError={e=>{e.target.style.display=“none”;}}/>
+: <div className="detail-hero-placeholder">🔭</div>}
+<div style={{display:“flex”,alignItems:“baseline”,gap:12,flexWrap:“wrap”,marginBottom:8}}>
+<div className="detail-title">
+{target.name.includes(”–”) ? <>{target.name.split(”–”)[0].trim()} <em>– {target.name.split(”–”)[1].trim()}</em></> : target.name}
+</div>
+<span className="tag-wish">WISHLIST</span>
+</div>
+<div className="detail-grid">
+<div className="detail-panel">
+<div className="panel-title">Object data</div>
+<div className="data-row"><span className="data-label">Magnitude</span><span className="data-value highlight">{target.magnitude||”—”}</span></div>
+<div className="data-row"><span className="data-label">Angular size</span><span className="data-value highlight">{target.angularSize||”—”}</span></div>
+</div>
+</div>
+{target.facts && <div className="facts-box">{target.facts}</div>}
+<div style={{marginTop:20,display:“flex”,gap:8,flexWrap:“wrap”}}>
+<button className=“promote-btn” onClick={()=>onPromote(target)}>✓ Mark as captured</button>
+<button className=“delete-btn” onClick={()=>onDelete(target.id)}>Remove</button>
+</div>
+</div>
+);
+}
+
+// ── App root ──────────────────────────────────────
+function App() {
+const saved = loadState();
+const [targets, setTargets] = useState(saved?.targets || INIT_TARGETS);
+const [wishlist, setWishlist] = useState(saved?.wishlist || INIT_WISHLIST);
+const [tab, setTab] = useState(“gallery”);
+const [selected, setSelected] = useState(null);
+const [addModal, setAddModal] = useState(null);
+const [promoteItem, setPromoteItem] = useState(null);
+
+useEffect(() => { saveState(targets, wishlist); }, [targets, wishlist]);
+
+const handleSaveCaptured = t => {
+setTargets(ts => [t, …ts]);
+if (promoteItem) { setWishlist(w => w.filter(x => x.id !== promoteItem.id)); setPromoteItem(null); }
+setAddModal(null); setTab(“gallery”); setSelected(t.id);
+};
+const handleSaveWish = item => { setWishlist(w => [item,…w]); setAddModal(null); };
+const handleAddSession = (id, s) => setTargets(ts => ts.map(t => t.id===id ? {…t, sessions:[…(t.sessions||[]),{id:Date.now().toString(),…s}]} : t));
+const handleDeleteTarget = id => { setTargets(ts=>ts.filter(t=>t.id!==id)); setSelected(null); };
+const handleDeleteWish = id => { setWishlist(w=>w.filter(x=>x.id!==id)); setSelected(null); };
+const handlePromote = item => { setPromoteItem(item); setSelected(null); setTab(“gallery”); setAddModal(“captured”); };
+
+const selTarget = tab===“gallery” ? targets.find(t=>t.id===selected) : wishlist.find(t=>t.id===selected);
+
+return (
+<div className="app">
+<div className="header">
+<div className="header-title">Astro<em>Journal</em></div>
+<div className="header-sub">{targets.length} captured · {wishlist.length} targets</div>
+</div>
+
+```
+  {!selected && (
+    <div className="tabs">
+      <button className={`tab ${tab==="gallery"?"active":""}`} onClick={()=>setTab("gallery")}>Gallery</button>
+      <button className={`tab ${tab==="wishlist"?"active":""}`} onClick={()=>setTab("wishlist")}>Wishlist</button>
+    </div>
+  )}
+
+  {tab==="gallery" && !selected && <Gallery targets={targets} onSelect={setSelected} onAdd={()=>setAddModal("captured")}/>}
+  {tab==="gallery" && selected && selTarget && <DetailView target={selTarget} onBack={()=>setSelected(null)} onAddSession={handleAddSession} onDelete={handleDeleteTarget}/>}
+
+  {tab==="wishlist" && !selected && <WishlistView items={wishlist} onAdd={()=>setAddModal("wishlist")} onSelect={setSelected}/>}
+  {tab==="wishlist" && selected && selTarget && <WishDetail target={selTarget} onBack={()=>setSelected(null)} onDelete={handleDeleteWish} onPromote={handlePromote}/>}
+
+  {addModal==="captured" && <AddTargetModal type="captured" onSave={handleSaveCaptured} onClose={()=>{setAddModal(null);setPromoteItem(null);}}/>}
+  {addModal==="wishlist" && <AddTargetModal type="wishlist" onSave={handleSaveWish} onClose={()=>setAddModal(null)}/>}
+</div>
+```
+
+);
+}
+
+ReactDOM.createRoot(document.getElementById(“root”)).render(<App/>);
+</script>
+
+</body>
+</html>
