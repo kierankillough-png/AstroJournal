@@ -192,7 +192,7 @@ async function patchSession(id, s) {
 
 // ── Gemini API ────────────────────────────────────
 const GEMINI_KEY = "AIzaSyD9mjjOXDGzKJEOd1Zi9-z1C603dUbdy9E";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_KEY}`;
 async function callAI(prompt) {
   const res = await fetch(GEMINI_URL, {
     method:"POST", headers:{"Content-Type":"application/json"},
@@ -371,6 +371,7 @@ function AddTargetModal({ onSave, onClose, type }) {
     if (!name.trim()) return;
     setLoading(true);
     const data = await fetchTargetData(name.trim());
+    if (type==="wishlist") await new Promise(r=>setTimeout(r,2000));
     const imageUrl = type==="wishlist" ? await fetchWishlistImage(name.trim()) : "";
     const id = Date.now().toString();
     if (type==="captured") {
