@@ -190,16 +190,14 @@ async function patchSession(id, s) {
   return sbFetch(`/rest/v1/sessions?id=eq.${id}`,"PATCH",{ telescope:s.telescope, camera:s.camera, subframes:s.subframes, subframe_time:s.subframeTime, filter:s.filter, date:s.date||null, image:s.image||null });
 }
 
-// ── Gemini API ────────────────────────────────────
-const GEMINI_KEY = "AIzaSyD9mjjOXDGzKJEOd1Zi9-z1C603dUbdy9E";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_KEY}`;
+// ── AI proxy ─────────────────────────────────────
 async function callAI(prompt) {
-  const res = await fetch(GEMINI_URL, {
+  const res = await fetch("/api/generate", {
     method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ contents:[{ parts:[{ text: prompt }] }] }),
+    body:JSON.stringify({ prompt }),
   });
   const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  return data.text || "";
 }
 function resolveTargetName(name) {
   const messier = name.trim().match(/^M(\d+)\b/i);
@@ -371,7 +369,6 @@ function AddTargetModal({ onSave, onClose, type }) {
     if (!name.trim()) return;
     setLoading(true);
     const data = await fetchTargetData(name.trim());
-    if (type==="wishlist") await new Promise(r=>setTimeout(r,2000));
     const imageUrl = type==="wishlist" ? await fetchWishlistImage(name.trim()) : "";
     const id = Date.now().toString();
     if (type==="captured") {
