@@ -213,16 +213,27 @@ async function fetchTargetData(name) {
 }
 async function fetchWishlistImage(name) {
   try {
-    const query = encodeURIComponent(resolveTargetName(name));
+    // Build a clean search query - prefer short form e.g. "M51" or "NGC 7293"
+    const trimmed = name.trim();
+    // Extract just the catalogue designation if name has an em-dash description
+    const shortName = trimmed.includes("–") ? trimmed.split("–")[0].trim() : trimmed;
+    const query = encodeURIComponent(shortName);
     const res = await fetch(`https://images-api.nasa.gov/search?q=${query}&media_type=image&year_start=1990`);
     const data = await res.json();
     const items = data.collection?.items;
-    if (items && items.length > 0) {
-      // Find first item with a jpeg link
-      for (const item of items.slice(0, 5)) {
-        const links = item.links;
-        if (links && links[0]?.href) return links[0].href;
-      }
+    if (!items || items.length === 0) return "";
+    // Filter to items whose description/title contains the short name
+    // to avoid unrelated results like telescope hardware
+    const lower = shortName.toLowerCase();
+    const filtered = items.filter(item => {
+      const title = (item.data?.[0]?.title || "").toLowerCase();
+      const desc = (item.data?.[0]?.description || "").toLowerCase();
+      return title.includes(lower) || desc.includes(lower);
+    });
+    const candidates = filtered.length > 0 ? filtered : items;
+    for (const item of candidates.slice(0, 5)) {
+      const href = item.links?.[0]?.href;
+      if (href && href.match(/\.(jpg|jpeg|png)/i)) return href;
     }
     return "";
   } catch { return ""; }
