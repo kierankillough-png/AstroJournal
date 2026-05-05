@@ -35,7 +35,7 @@ export default async function handler(req) {
     const data = await response.json();
     const text = data.content?.[0]?.text || "";
 
-    return new Response(JSON.stringify({ text }), {
+    return new Response(JSON.stringify({ text, debug: data }), {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
