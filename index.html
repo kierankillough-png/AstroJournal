@@ -216,21 +216,32 @@ async function fetchWishlistImage(name) {
     const trimmed = name.trim();
     const shortName = trimmed.includes("–") ? trimmed.split("–")[0].trim() : trimmed;
 
-    // For Messier objects, ask Claude to resolve the common name for better Wikipedia lookup
-    let searchName = shortName;
+    // Build a list of names to try in order
+    const namesToTry = [shortName];
+
+    // For Messier objects, ask Claude for the common name, then also try "Messier NN"
     if (/^M\d+$/i.test(shortName)) {
-      const prompt = `What is the most common proper name for the astronomical object ${shortName}? Return ONLY the name, nothing else. Example: for M42 return "Orion Nebula", for M31 return "Andromeda Galaxy". If no common name exists return "${shortName}".`;
+      const prompt = `What is the most common proper name for the astronomical object ${shortName}? Return ONLY the name, nothing else. Example: for M42 return "Orion Nebula", for M31 return "Andromeda Galaxy". If no single well-known name exists, just return "${shortName}".`;
       const resolved = (await callAI(prompt)).trim().replace(/['"]/g, "");
-      if (resolved && resolved.length > 0) searchName = resolved;
+      // Only use Claude's answer if it's a clean proper name (not a descriptor like "Spiral Galaxy M100")
+      if (resolved && !resolved.toLowerCase().includes("galaxy m") && !resolved.toLowerCase().includes("nebula m") && resolved !== shortName) {
+        namesToTry.unshift(resolved);
+      }
+      // Also try "Messier 100" style
+      const messierNum = shortName.match(/^M(\d+)$/i)?.[1];
+      if (messierNum) namesToTry.push(`Messier ${messierNum}`);
     }
 
-    const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(searchName)}&prop=pageimages&format=json&pithumbsize=600&origin=*`;
-    const res = await fetch(apiUrl);
-    const data = await res.json();
-    const pages = data.query?.pages;
-    if (pages) {
-      const page = Object.values(pages)[0];
-      if (page?.thumbnail?.source) return page.thumbnail.source;
+    // Try each name against Wikipedia until we get a thumbnail
+    for (const n of namesToTry) {
+      const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(n)}&prop=pageimages&format=json&pithumbsize=600&origin=*`;
+      const res = await fetch(apiUrl);
+      const data = await res.json();
+      const pages = data.query?.pages;
+      if (pages) {
+        const page = Object.values(pages)[0];
+        if (page?.thumbnail?.source) return page.thumbnail.source;
+      }
     }
     return "";
   } catch { return ""; }
