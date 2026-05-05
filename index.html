@@ -215,9 +215,16 @@ async function fetchWishlistImage(name) {
   try {
     const trimmed = name.trim();
     const shortName = trimmed.includes("–") ? trimmed.split("–")[0].trim() : trimmed;
-    // Use Wikimedia Commons API to find astronomical images
-    const query = encodeURIComponent(shortName + " astronomy");
-    const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(shortName)}&prop=pageimages&format=json&pithumbsize=500&origin=*`;
+
+    // For Messier objects, ask Claude to resolve the common name for better Wikipedia lookup
+    let searchName = shortName;
+    if (/^M\d+$/i.test(shortName)) {
+      const prompt = `What is the most common proper name for the astronomical object ${shortName}? Return ONLY the name, nothing else. Example: for M42 return "Orion Nebula", for M31 return "Andromeda Galaxy". If no common name exists return "${shortName}".`;
+      const resolved = (await callAI(prompt)).trim().replace(/['"]/g, "");
+      if (resolved && resolved.length > 0) searchName = resolved;
+    }
+
+    const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(searchName)}&prop=pageimages&format=json&pithumbsize=600&origin=*`;
     const res = await fetch(apiUrl);
     const data = await res.json();
     const pages = data.query?.pages;
