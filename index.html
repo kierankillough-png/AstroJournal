@@ -212,10 +212,20 @@ async function fetchTargetData(name) {
   catch { return { facts:"Could not retrieve facts for this target.", magnitude:"N/A", angularSize:"N/A" }; }
 }
 async function fetchWishlistImage(name) {
-  const resolved = resolveTargetName(name);
-  const prompt = `Provide a direct publicly accessible image URL for the astronomical object "${resolved}". Use NASA, ESA, or Wikimedia Commons. Return ONLY JSON (no markdown): {"imageUrl":"https://..."}. If unsure return {"imageUrl":""}`;
-  try { const {imageUrl}=JSON.parse((await callAI(prompt)).replace(/```json|```/g,"").trim()); return imageUrl||""; }
-  catch { return ""; }
+  try {
+    const query = encodeURIComponent(resolveTargetName(name));
+    const res = await fetch(`https://images-api.nasa.gov/search?q=${query}&media_type=image&year_start=1990`);
+    const data = await res.json();
+    const items = data.collection?.items;
+    if (items && items.length > 0) {
+      // Find first item with a jpeg link
+      for (const item of items.slice(0, 5)) {
+        const links = item.links;
+        if (links && links[0]?.href) return links[0].href;
+      }
+    }
+    return "";
+  } catch { return ""; }
 }
 
 // ── Helpers ───────────────────────────────────────
