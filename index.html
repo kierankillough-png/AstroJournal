@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -154,215 +155,217 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-mono);
 const { useState, useEffect, useRef } = React;
 
 // ── Constants ─────────────────────────────────────
-const CAMERAS = ["ASI 533MC Pro", "ASI 678MC"];
-const TELESCOPES = ["Celestron Edge HD 8", "William Optics Zenithstar 61 II APO"];
-const FILTERS = ["Optolong L-Pro", "Optolong L-Extreme", "IR/UV Cut Filter", "No Filter"];
+const CAMERAS = [“ASI 533MC Pro”, “ASI 678MC”];
+const TELESCOPES = [“Celestron Edge HD 8”, “William Optics Zenithstar 61 II APO”];
+const FILTERS = [“Optolong L-Pro”, “Optolong L-Extreme”, “IR/UV Cut Filter”, “No Filter”];
 
 // ── Supabase ──────────────────────────────────────
-const SB_URL = "https://qxulcmjmnxizyfamktlv.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4dWxjbWptbnhpenlmYW1rdGx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MTk5OTAsImV4cCI6MjA5MzQ5NTk5MH0.OZzvjyGWnZ71ylG_ATooNHDRhzl6AqDlujoFh7xqO5M";
-const sbH = { "Content-Type":"application/json", "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Prefer":"return=representation" };
+const SB_URL = “https://qxulcmjmnxizyfamktlv.supabase.co”;
+const SB_KEY = “eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4dWxjbWptbnhpenlmYW1rdGx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MTk5OTAsImV4cCI6MjA5MzQ5NTk5MH0.OZzvjyGWnZ71ylG_ATooNHDRhzl6AqDlujoFh7xqO5M”;
+const sbH = { “Content-Type”:“application/json”, “apikey”:SB_KEY, “Authorization”:`Bearer ${SB_KEY}`, “Prefer”:“return=representation” };
 
-async function sbFetch(path, method="GET", body=null) {
-  const opts = { method, headers: sbH };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(SB_URL + path, opts);
-  if (!res.ok) throw new Error(await res.text());
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+async function sbFetch(path, method=“GET”, body=null) {
+const opts = { method, headers: sbH };
+if (body) opts.body = JSON.stringify(body);
+const res = await fetch(SB_URL + path, opts);
+if (!res.ok) throw new Error(await res.text());
+const text = await res.text();
+return text ? JSON.parse(text) : null;
 }
 
 async function loadAll() {
-  const [targets, sessions] = await Promise.all([
-    sbFetch("/rest/v1/targets?order=created_at.desc&select=*"),
-    sbFetch("/rest/v1/imaging_sessions?order=created_at.asc&select=id,target_id,telescope,camera,subframes,subframe_time,filter,date,created_at"),
-  ]);
-  return (targets||[]).map(t => ({
-    ...t, angularSize: t.angular_size, imageUrl: t.image_url, commonName: t.common_name||'',
-    thumbnail: t.thumbnail || null,
-    sessions: (sessions||[]).filter(s=>s.target_id===t.id).map(s=>({...s, subframeTime:s.subframe_time})),
-  }));
+const [targets, sessions] = await Promise.all([
+sbFetch(”/rest/v1/targets?order=created_at.desc&select=*”),
+sbFetch(”/rest/v1/imaging_sessions?order=created_at.asc&select=id,target_id,telescope,camera,subframes,subframe_time,filter,date,created_at”),
+]);
+return (targets||[]).map(t => ({
+…t, angularSize: t.angular_size, imageUrl: t.image_url, commonName: t.common_name||’’,
+thumbnail: t.thumbnail || null,
+sessions: (sessions||[]).filter(s=>s.target_id===t.id).map(s=>({…s, subframeTime:s.subframe_time})),
+}));
 }
 
 async function insertTarget(t) {
-  return sbFetch("/rest/v1/targets","POST",{ id:t.id, name:t.name, common_name:t.commonName||null, facts:t.facts, magnitude:t.magnitude, angular_size:t.angularSize, type:t.type, image_url:t.imageUrl||null, thumbnail:t.thumbnail||null });
+return sbFetch(”/rest/v1/targets”,“POST”,{ id:t.id, name:t.name, common_name:t.commonName||null, facts:t.facts, magnitude:t.magnitude, angular_size:t.angularSize, type:t.type, image_url:t.imageUrl||null, thumbnail:t.thumbnail||null });
 }
 async function patchTarget(id, fields) {
-  return sbFetch(`/rest/v1/targets?id=eq.${id}`,"PATCH", fields);
+return sbFetch(`/rest/v1/targets?id=eq.${id}`,“PATCH”, fields);
 }
 async function deleteTarget(id) {
-  await sbFetch(`/rest/v1/targets?id=eq.${id}`,"DELETE");
+await sbFetch(`/rest/v1/targets?id=eq.${id}`,“DELETE”);
 }
 async function fetchSessionImages(targetId) {
-  const rows = await sbFetch(`/rest/v1/imaging_sessions?target_id=eq.${targetId}&select=id,image`);
-  return (rows||[]).reduce((acc, r) => { acc[r.id] = r.image; return acc; }, {});
+const rows = await sbFetch(`/rest/v1/imaging_sessions?target_id=eq.${targetId}&select=id,image`);
+return (rows||[]).reduce((acc, r) => { acc[r.id] = r.image; return acc; }, {});
 }
 async function insertSession(targetId, s) {
-  return sbFetch("/rest/v1/imaging_sessions","POST",{ id:s.id, target_id:targetId, telescope:s.telescope, camera:s.camera, subframes:s.subframes, subframe_time:s.subframeTime, filter:s.filter, date:s.date||null, image:s.image||null });
+return sbFetch(”/rest/v1/imaging_sessions”,“POST”,{ id:s.id, target_id:targetId, telescope:s.telescope, camera:s.camera, subframes:s.subframes, subframe_time:s.subframeTime, filter:s.filter, date:s.date||null, image:s.image||null });
 }
 async function patchSession(id, s) {
-  return sbFetch(`/rest/v1/imaging_sessions?id=eq.${id}`,"PATCH",{ telescope:s.telescope, camera:s.camera, subframes:s.subframes, subframe_time:s.subframeTime, filter:s.filter, date:s.date||null, image:s.image||null });
+return sbFetch(`/rest/v1/imaging_sessions?id=eq.${id}`,“PATCH”,{ telescope:s.telescope, camera:s.camera, subframes:s.subframes, subframe_time:s.subframeTime, filter:s.filter, date:s.date||null, image:s.image||null });
 }
 
 // ── AI proxy ─────────────────────────────────────
 async function callAI(prompt) {
-  const res = await fetch("/api/generate", {
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ prompt }),
-  });
-  const data = await res.json();
-  return data.text || "";
+const res = await fetch(”/api/generate”, {
+method:“POST”, headers:{“Content-Type”:“application/json”},
+body:JSON.stringify({ prompt }),
+});
+const data = await res.json();
+return data.text || “”;
 }
 function resolveTargetName(name) {
-  const messier = name.trim().match(/^M(\d+)\b/i);
-  if (messier) return `Messier ${messier[1]} (${name.trim()})`;
-  return name.trim();
+const messier = name.trim().match(/^M(\d+)\b/i);
+if (messier) return `Messier ${messier[1]} (${name.trim()})`;
+return name.trim();
 }
 async function fetchTargetData(name) {
-  const resolved = resolveTargetName(name);
-  const prompt = `You are an astronomy expert. For the astronomical target "${resolved}" return ONLY a JSON object (no markdown, no backticks):
-{"facts":"A single engaging paragraph (3-5 sentences) with interesting facts for an astrophotographer.","magnitude":"Apparent magnitude e.g. 5.8 or range 3.2-4.5 or N/A","angularSize":"Angular size e.g. 45' x 30' or 3.5deg or N/A"}`;
-  try { return JSON.parse((await callAI(prompt)).replace(/```json|```/g,"").trim()); }
-  catch { return { facts:"Could not retrieve facts for this target.", magnitude:"N/A", angularSize:"N/A" }; }
+const resolved = resolveTargetName(name);
+const prompt = `You are an astronomy expert. For the astronomical target "${resolved}" return ONLY a JSON object (no markdown, no backticks): {"facts":"A single engaging paragraph (3-5 sentences) with interesting facts for an astrophotographer.","magnitude":"Apparent magnitude e.g. 5.8 or range 3.2-4.5 or N/A","angularSize":"Angular size e.g. 45' x 30' or 3.5deg or N/A"}`;
+try { return JSON.parse((await callAI(prompt)).replace(/`json|`/g,””).trim()); }
+catch { return { facts:“Could not retrieve facts for this target.”, magnitude:“N/A”, angularSize:“N/A” }; }
 }
 async function fetchWishlistImage(name) {
-  try {
-    const trimmed = name.trim();
-    const shortName = trimmed.includes("–") ? trimmed.split("–")[0].trim() : trimmed;
+try {
+const trimmed = name.trim();
+const shortName = trimmed.includes(”–”) ? trimmed.split(”–”)[0].trim() : trimmed;
 
-    // Build a list of names to try in order
-    const namesToTry = [shortName];
+```
+// Build a list of names to try in order
+const namesToTry = [shortName];
 
-    // For Messier objects, ask Claude for the common name, then also try "Messier NN"
-    if (/^M\d+$/i.test(shortName)) {
-      const prompt = `What is the most common proper name for the astronomical object ${shortName}? Return ONLY the name, nothing else. Example: for M42 return "Orion Nebula", for M31 return "Andromeda Galaxy". If no single well-known name exists, just return "${shortName}".`;
-      const resolved = (await callAI(prompt)).trim().replace(/['"]/g, "");
-      // Only use Claude's answer if it's a clean proper name (not a descriptor like "Spiral Galaxy M100")
-      if (resolved && !resolved.toLowerCase().includes("galaxy m") && !resolved.toLowerCase().includes("nebula m") && resolved !== shortName) {
-        namesToTry.unshift(resolved);
-      }
-      // Also try "Messier 100" style
-      const messierNum = shortName.match(/^M(\d+)$/i)?.[1];
-      if (messierNum) namesToTry.push(`Messier ${messierNum}`);
-    }
+// For Messier objects, ask Claude for the common name, then also try "Messier NN"
+if (/^M\d+$/i.test(shortName)) {
+  const prompt = `What is the most common proper name for the astronomical object ${shortName}? Return ONLY the name, nothing else. Example: for M42 return "Orion Nebula", for M31 return "Andromeda Galaxy". If no single well-known name exists, just return "${shortName}".`;
+  const resolved = (await callAI(prompt)).trim().replace(/['"]/g, "");
+  // Only use Claude's answer if it's a clean proper name (not a descriptor like "Spiral Galaxy M100")
+  if (resolved && !resolved.toLowerCase().includes("galaxy m") && !resolved.toLowerCase().includes("nebula m") && resolved !== shortName) {
+    namesToTry.unshift(resolved);
+  }
+  // Also try "Messier 100" style
+  const messierNum = shortName.match(/^M(\d+)$/i)?.[1];
+  if (messierNum) namesToTry.push(`Messier ${messierNum}`);
+}
 
-    // Try each name against Wikipedia until we get a thumbnail
-    for (const n of namesToTry) {
-      const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(n)}&prop=pageimages&format=json&pithumbsize=600&origin=*`;
-      const res = await fetch(apiUrl);
-      const data = await res.json();
-      const pages = data.query?.pages;
-      if (pages) {
-        const page = Object.values(pages)[0];
-        if (page?.thumbnail?.source) return page.thumbnail.source;
-      }
-    }
-    return "";
-  } catch { return ""; }
+// Try each name against Wikipedia until we get a thumbnail
+for (const n of namesToTry) {
+  const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(n)}&prop=pageimages&format=json&pithumbsize=600&origin=*`;
+  const res = await fetch(apiUrl);
+  const data = await res.json();
+  const pages = data.query?.pages;
+  if (pages) {
+    const page = Object.values(pages)[0];
+    if (page?.thumbnail?.source) return page.thumbnail.source;
+  }
+}
+return "";
+```
+
+} catch { return “”; }
 }
 
 // ── Helpers ───────────────────────────────────────
 function fmtDate(d) {
-  if (!d) return "—";
-  return new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+if (!d) return “—”;
+return new Date(d+“T00:00:00”).toLocaleDateString(“en-GB”,{day:“numeric”,month:“short”,year:“numeric”});
 }
 function toBase64(file) {
-  return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});
+return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});
 }
 async function compressToThumbnail(base64) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const size = 400;
-      const ratio = Math.min(size/img.width, size/img.height);
-      canvas.width = img.width * ratio;
-      canvas.height = img.height * ratio;
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = () => resolve(null);
-    img.src = base64;
-  });
+return new Promise(resolve => {
+const img = new Image();
+img.onload = () => {
+const canvas = document.createElement(“canvas”);
+const size = 400;
+const ratio = Math.min(size/img.width, size/img.height);
+canvas.width = img.width * ratio;
+canvas.height = img.height * ratio;
+canvas.getContext(“2d”).drawImage(img, 0, 0, canvas.width, canvas.height);
+resolve(canvas.toDataURL(“image/jpeg”, 0.85));
+};
+img.onerror = () => resolve(null);
+img.src = base64;
+});
 }
 function TargetTitle({name}) {
-  if (!name.includes("–")) return <>{name}</>;
-  const [a,...rest]=name.split("–"); return <>{a.trim()} <em>– {rest.join("–").trim()}</em></>;
+if (!name.includes(”–”)) return <>{name}</>;
+const [a,…rest]=name.split(”–”); return <>{a.trim()} <em>– {rest.join(”–”).trim()}</em></>;
 }
 
 // ── Combobox (select + free type) ────────────────
 function Combobox({ value, onChange, options, placeholder }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef();
-  useEffect(()=>{
-    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", handler);
-    return ()=>document.removeEventListener("mousedown", handler);
-  },[]);
-  const filtered = options.filter(o=>o.toLowerCase().includes((value||"").toLowerCase()));
-  return (
-    <div className="combobox-wrap" ref={ref}>
-      <input className="form-input" value={value||""} placeholder={placeholder||"Select or type…"}
-        onChange={e=>{onChange(e.target.value);setOpen(true);}}
-        onFocus={()=>setOpen(true)} />
-      {open && (
-        <div className="combobox-list">
-          {filtered.map(o=>(
-            <div key={o} className="combobox-opt" onMouseDown={e=>{e.preventDefault();onChange(o);setOpen(false);}}>
-              {o}
-            </div>
-          ))}
-          {filtered.length===0&&<div className="combobox-opt" style={{opacity:0.4}}>No matches — type to use custom</div>}
-        </div>
-      )}
-    </div>
-  );
+const [open, setOpen] = useState(false);
+const ref = useRef();
+useEffect(()=>{
+const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+document.addEventListener(“mousedown”, handler);
+return ()=>document.removeEventListener(“mousedown”, handler);
+},[]);
+const filtered = options.filter(o=>o.toLowerCase().includes((value||””).toLowerCase()));
+return (
+<div className="combobox-wrap" ref={ref}>
+<input className=“form-input” value={value||””} placeholder={placeholder||“Select or type…”}
+onChange={e=>{onChange(e.target.value);setOpen(true);}}
+onFocus={()=>setOpen(true)} />
+{open && (
+<div className="combobox-list">
+{filtered.map(o=>(
+<div key={o} className=“combobox-opt” onMouseDown={e=>{e.preventDefault();onChange(o);setOpen(false);}}>
+{o}
+</div>
+))}
+{filtered.length===0&&<div className="combobox-opt" style={{opacity:0.4}}>No matches — type to use custom</div>}
+</div>
+)}
+</div>
+);
 }
 
 // ── Shared session fields component ───────────────
 function SessionFields({ f, set }) {
-  return (
-    <div className="form-grid">
-      <div className="form-row">
-        <label className="form-label">Telescope</label>
-        <Combobox value={f.telescope} onChange={v=>set("telescope",v)} options={TELESCOPES} />
-      </div>
-      <div className="form-row">
-        <label className="form-label">Camera</label>
-        <Combobox value={f.camera} onChange={v=>set("camera",v)} options={CAMERAS} />
-      </div>
-      <div className="form-row">
-        <label className="form-label">Subframes</label>
-        <input className="form-input" type="number" value={f.subframes} onChange={e=>set("subframes",e.target.value)} />
-      </div>
-      <div className="form-row">
-        <label className="form-label">Duration (seconds)</label>
-        <input className="form-input" type="number" min="1" placeholder="e.g. 120" value={f.subframeTime} onChange={e=>set("subframeTime",e.target.value)} />
-      </div>
-      <div className="form-row">
-        <label className="form-label">Filter</label>
-        <Combobox value={f.filter} onChange={v=>set("filter",v)} options={FILTERS} />
-      </div>
-      <div className="form-row">
-        <label className="form-label">Date</label>
-        <input className="form-input" type="date" value={f.date} onChange={e=>set("date",e.target.value)} />
-      </div>
-    </div>
-  );
+return (
+<div className="form-grid">
+<div className="form-row">
+<label className="form-label">Telescope</label>
+<Combobox value={f.telescope} onChange={v=>set(“telescope”,v)} options={TELESCOPES} />
+</div>
+<div className="form-row">
+<label className="form-label">Camera</label>
+<Combobox value={f.camera} onChange={v=>set(“camera”,v)} options={CAMERAS} />
+</div>
+<div className="form-row">
+<label className="form-label">Subframes</label>
+<input className=“form-input” type=“number” value={f.subframes} onChange={e=>set(“subframes”,e.target.value)} />
+</div>
+<div className="form-row">
+<label className="form-label">Duration (seconds)</label>
+<input className=“form-input” type=“number” min=“1” placeholder=“e.g. 120” value={f.subframeTime} onChange={e=>set(“subframeTime”,e.target.value)} />
+</div>
+<div className="form-row">
+<label className="form-label">Filter</label>
+<Combobox value={f.filter} onChange={v=>set(“filter”,v)} options={FILTERS} />
+</div>
+<div className="form-row">
+<label className="form-label">Date</label>
+<input className=“form-input” type=“date” value={f.date} onChange={e=>set(“date”,e.target.value)} />
+</div>
+</div>
+);
 }
 
 function ImageUpload({ value, onChange }) {
-  const ref = useRef();
-  return (
-    <div>
-      <div className="img-upload" onClick={()=>ref.current.click()}>
-        {value?"Tap to change image":"Tap to upload image"}<br/>
-        <span style={{fontSize:10,opacity:0.6}}>JPG · PNG · TIFF</span>
-        <input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={async e=>{if(e.target.files[0])onChange(await toBase64(e.target.files[0]));}} />
-      </div>
-      {value && <img src={value} className="img-preview" alt="preview"/>}
-    </div>
-  );
+const ref = useRef();
+return (
+<div>
+<div className=“img-upload” onClick={()=>ref.current.click()}>
+{value?“Tap to change image”:“Tap to upload image”}<br/>
+<span style={{fontSize:10,opacity:0.6}}>JPG · PNG · TIFF</span>
+<input ref={ref} type=“file” accept=“image/*” style={{display:“none”}} onChange={async e=>{if(e.target.files[0])onChange(await toBase64(e.target.files[0]));}} />
+</div>
+{value && <img src={value} className="img-preview" alt="preview"/>}
+</div>
+);
 }
 
 function Toast({msg,error}) { return <div className={`toast ${error?"error":""}`}>{msg}</div>; }
@@ -370,443 +373,444 @@ function Lightbox({src,onClose}) { return <div className="lightbox" onClick={onC
 
 // ── Session modal (add or edit) ───────────────────
 function SessionModal({ onSave, onClose, saving, initial }) {
-  const blank = { telescope:"", camera:"", subframes:"", subframeTime:"", filter:"", date:"", image:null };
-  const [f, setF] = useState(initial ? {
-    telescope: initial.telescope||"",
-    camera: initial.camera||"",
-    subframes: initial.subframes||"",
-    subframeTime: initial.subframeTime||initial.subframe_time||"",
-    filter: initial.filter||"",
-    date: initial.date||"",
-    image: initial.image||null,
-  } : blank);
-  const set = (k,v) => setF(p=>({...p,[k]:v}));
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e=>e.stopPropagation()}>
-        <div className="modal-title">{initial?"Edit session":"Add imaging session"}</div>
-        <SessionFields f={f} set={set} />
-        <div className="form-row" style={{marginTop:8}}>
-          <label className="form-label">Image (optional)</label>
-          <ImageUpload value={f.image} onChange={v=>set("image",v)} />
-        </div>
-        <div className="modal-actions">
-          <button className="btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="btn-save" onClick={()=>onSave(f)} disabled={saving}>
-            {saving?<span className="spinner"/>:"Save session"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+const blank = { telescope:””, camera:””, subframes:””, subframeTime:””, filter:””, date:””, image:null };
+const [f, setF] = useState(initial ? {
+telescope: initial.telescope||””,
+camera: initial.camera||””,
+subframes: initial.subframes||””,
+subframeTime: initial.subframeTime||initial.subframe_time||””,
+filter: initial.filter||””,
+date: initial.date||””,
+image: initial.image||null,
+} : blank);
+const set = (k,v) => setF(p=>({…p,[k]:v}));
+return (
+<div className="overlay" onClick={onClose}>
+<div className=“modal” onClick={e=>e.stopPropagation()}>
+<div className="modal-title">{initial?“Edit session”:“Add imaging session”}</div>
+<SessionFields f={f} set={set} />
+<div className="form-row" style={{marginTop:8}}>
+<label className="form-label">Image (optional)</label>
+<ImageUpload value={f.image} onChange={v=>set(“image”,v)} />
+</div>
+<div className="modal-actions">
+<button className="btn-cancel" onClick={onClose}>Cancel</button>
+<button className=“btn-save” onClick={()=>onSave(f)} disabled={saving}>
+{saving?<span className="spinner"/>:“Save session”}
+</button>
+</div>
+</div>
+</div>
+);
 }
 
 // ── Edit target modal ─────────────────────────────
 function EditTargetModal({ target, onSave, onClose, saving }) {
-  const [name, setName] = useState(target.name||"");
-  const [commonName, setCommonName] = useState(target.commonName||"");
-  const [facts, setFacts] = useState(target.facts||"");
-  const [magnitude, setMagnitude] = useState(target.magnitude||"");
-  const [angularSize, setAngularSize] = useState(target.angularSize||"");
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e=>e.stopPropagation()}>
-        <div className="modal-title">Edit target</div>
-        <div className="form-row">
-          <label className="form-label">Target name</label>
-          <input className="form-input" value={name} onChange={e=>setName(e.target.value)} />
-        </div>
-        <div className="form-row">
-          <label className="form-label">Common name (optional)</label>
-          <input className="form-input" placeholder="e.g. Bode's Galaxy" value={commonName} onChange={e=>setCommonName(e.target.value)} />
-        </div>
-        <div className="form-row">
-          <label className="form-label">Apparent magnitude</label>
-          <input className="form-input" value={magnitude} onChange={e=>setMagnitude(e.target.value)} />
-        </div>
-        <div className="form-row">
-          <label className="form-label">Angular size</label>
-          <input className="form-input" value={angularSize} onChange={e=>setAngularSize(e.target.value)} />
-        </div>
-        <div className="form-row">
-          <label className="form-label">Facts paragraph</label>
-          <textarea className="form-input" rows={5} style={{resize:"vertical",lineHeight:1.6}} value={facts} onChange={e=>setFacts(e.target.value)} />
-        </div>
-        <div className="modal-actions">
-          <button className="btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="btn-save" onClick={()=>onSave({name,commonName,facts,magnitude,angularSize})} disabled={saving}>
-            {saving?<span className="spinner"/>:"Save changes"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+const [name, setName] = useState(target.name||””);
+const [commonName, setCommonName] = useState(target.commonName||””);
+const [facts, setFacts] = useState(target.facts||””);
+const [magnitude, setMagnitude] = useState(target.magnitude||””);
+const [angularSize, setAngularSize] = useState(target.angularSize||””);
+return (
+<div className="overlay" onClick={onClose}>
+<div className=“modal” onClick={e=>e.stopPropagation()}>
+<div className="modal-title">Edit target</div>
+<div className="form-row">
+<label className="form-label">Target name</label>
+<input className=“form-input” value={name} onChange={e=>setName(e.target.value)} />
+</div>
+<div className="form-row">
+<label className="form-label">Common name (optional)</label>
+<input className=“form-input” placeholder=“e.g. Bode’s Galaxy” value={commonName} onChange={e=>setCommonName(e.target.value)} />
+</div>
+<div className="form-row">
+<label className="form-label">Apparent magnitude</label>
+<input className=“form-input” value={magnitude} onChange={e=>setMagnitude(e.target.value)} />
+</div>
+<div className="form-row">
+<label className="form-label">Angular size</label>
+<input className=“form-input” value={angularSize} onChange={e=>setAngularSize(e.target.value)} />
+</div>
+<div className="form-row">
+<label className="form-label">Facts paragraph</label>
+<textarea className=“form-input” rows={5} style={{resize:“vertical”,lineHeight:1.6}} value={facts} onChange={e=>setFacts(e.target.value)} />
+</div>
+<div className="modal-actions">
+<button className="btn-cancel" onClick={onClose}>Cancel</button>
+<button className=“btn-save” onClick={()=>onSave({name,commonName,facts,magnitude,angularSize})} disabled={saving}>
+{saving?<span className="spinner"/>:“Save changes”}
+</button>
+</div>
+</div>
+</div>
+);
 }
 
 // ── Add target modal ──────────────────────────────
 function AddTargetModal({ onSave, onClose, type }) {
-  const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [f, setF] = useState({ telescope:"", camera:"", subframes:"", subframeTime:"", filter:"", date:"", image:null });
-  const setField = (k,v) => setF(p=>({...p,[k]:v}));
-  const save = async () => {
-    if (!name.trim()) return;
-    setLoading(true);
-    const data = await fetchTargetData(name.trim());
-    const imageUrl = type==="wishlist" ? await fetchWishlistImage(name.trim()) : "";
-    const id = Date.now().toString();
-    if (type==="captured") {
-      onSave({ id, name:name.trim(), ...data, sessions:[{id:(Date.now()+1).toString(),...f}], type:"captured", imageUrl:"" });
-    } else {
-      onSave({ id, name:name.trim(), ...data, imageUrl, type:"wishlist", sessions:[] });
-    }
-  };
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e=>e.stopPropagation()}>
-        <div className="modal-title">{type==="captured"?"Add captured target":"Add wishlist target"}</div>
-        <div className="form-row">
-          <label className="form-label">Target name</label>
-          <input className="form-input" placeholder="e.g. M42, NGC 7293, Jupiter" value={name} onChange={e=>setName(e.target.value)} autoFocus />
-        </div>
-        {type==="captured" && <>
-          <hr className="divider"/>
-          <div className="section-label">First imaging session</div>
-          <SessionFields f={f} set={setField} />
-          <div className="form-row" style={{marginTop:8}}>
-            <label className="form-label">Image (optional)</label>
-            <ImageUpload value={f.image} onChange={v=>setField("image",v)} />
-          </div>
-        </>}
-        <div className="modal-actions">
-          <button className="btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="btn-save" onClick={save} disabled={loading||!name.trim()}>
-            {loading?<span className="spinner"/>:"Save & generate"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+const [name, setName] = useState(””);
+const [loading, setLoading] = useState(false);
+const [f, setF] = useState({ telescope:””, camera:””, subframes:””, subframeTime:””, filter:””, date:””, image:null });
+const setField = (k,v) => setF(p=>({…p,[k]:v}));
+const save = async () => {
+if (!name.trim()) return;
+setLoading(true);
+const data = await fetchTargetData(name.trim());
+const imageUrl = type===“wishlist” ? await fetchWishlistImage(name.trim()) : “”;
+const id = Date.now().toString();
+if (type===“captured”) {
+onSave({ id, name:name.trim(), …data, sessions:[{id:(Date.now()+1).toString(),…f}], type:“captured”, imageUrl:”” });
+} else {
+onSave({ id, name:name.trim(), …data, imageUrl, type:“wishlist”, sessions:[] });
+}
+};
+return (
+<div className="overlay" onClick={onClose}>
+<div className=“modal” onClick={e=>e.stopPropagation()}>
+<div className="modal-title">{type===“captured”?“Add captured target”:“Add wishlist target”}</div>
+<div className="form-row">
+<label className="form-label">Target name</label>
+<input className=“form-input” placeholder=“e.g. M42, NGC 7293, Jupiter” value={name} onChange={e=>setName(e.target.value)} autoFocus />
+</div>
+{type===“captured” && <>
+<hr className="divider"/>
+<div className="section-label">First imaging session</div>
+<SessionFields f={f} set={setField} />
+<div className="form-row" style={{marginTop:8}}>
+<label className="form-label">Image (optional)</label>
+<ImageUpload value={f.image} onChange={v=>setField(“image”,v)} />
+</div>
+</>}
+<div className="modal-actions">
+<button className="btn-cancel" onClick={onClose}>Cancel</button>
+<button className="btn-save" onClick={save} disabled={loading||!name.trim()}>
+{loading?<span className="spinner"/>:“Save & generate”}
+</button>
+</div>
+</div>
+</div>
+);
 }
 
 // ── Gallery ───────────────────────────────────────
 function Gallery({ targets, onSelect, onAdd }) {
-  const [sort, setSort] = useState("date");
-  const sorted = [...targets].sort((a,b)=>{
-    if (sort==="name") return a.name.localeCompare(b.name);
-    if (sort==="date") {
-      const da = a.sessions?.[0]?.date||"";
-      const db = b.sessions?.[0]?.date||"";
-      return db.localeCompare(da);
-    }
-    return 0;
-  });
-  return (
-    <div>
-      <div className="gallery-controls">
-        <span style={{fontSize:11,color:"var(--muted)",letterSpacing:"0.1em",textTransform:"uppercase"}}>Sort:</span>
-        <button className={`sort-btn ${sort==="date"?"active":""}`} onClick={()=>setSort("date")}>Date</button>
-        <button className={`sort-btn ${sort==="name"?"active":""}`} onClick={()=>setSort("name")}>Name</button>
-      </div>
-      <div className="gallery">
-        {sorted.map(t => {
-          const thumb = t.thumbnail;
-          return (
-            <div key={t.id} className="card" onClick={()=>onSelect(t.id)}>
-              {thumb?<img src={thumb} className="card-thumb" alt={t.name}/>:<div className="card-thumb-placeholder">🌌</div>}
-              {t.sessions?.length>1 && <div className="card-count">{t.sessions.length}×</div>}
-              {t.magnitude&&t.magnitude!=="N/A"&&<div className="card-badge">mag {t.magnitude}</div>}
-              <div className="card-info">
-                {t.commonName&&<div className="card-common-name">{t.commonName}</div>}
-                <div className="card-name">{t.name}</div>
-                <div className="card-meta">
-                  {t.angularSize&&t.angularSize!=="N/A"&&<span>{t.angularSize}</span>}
-                  {t.sessions?.[0]?.date&&<span>{fmtDate(t.sessions[0].date)}</span>}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        <div className="add-btn" onClick={onAdd}>+ Add target</div>
-      </div>
-      {targets.length===0&&<div className="empty-state"><div className="empty-state-icon">🔭</div><p>No captured targets yet.<br/>Add your first astrophotograph.</p></div>}
-    </div>
-  );
+const [sort, setSort] = useState(“date”);
+const sorted = […targets].sort((a,b)=>{
+if (sort===“name”) return a.name.localeCompare(b.name);
+if (sort===“date”) {
+const da = a.sessions?.[0]?.date||””;
+const db = b.sessions?.[0]?.date||””;
+return db.localeCompare(da);
+}
+return 0;
+});
+return (
+<div>
+<div className="gallery-controls">
+<span style={{fontSize:11,color:“var(–muted)”,letterSpacing:“0.1em”,textTransform:“uppercase”}}>Sort:</span>
+<button className={`sort-btn ${sort==="date"?"active":""}`} onClick={()=>setSort(“date”)}>Date</button>
+<button className={`sort-btn ${sort==="name"?"active":""}`} onClick={()=>setSort(“name”)}>Name</button>
+</div>
+<div className="gallery">
+{sorted.map(t => {
+const thumb = t.thumbnail;
+return (
+<div key={t.id} className=“card” onClick={()=>onSelect(t.id)}>
+{thumb?<img src={thumb} className="card-thumb" alt={t.name}/>:<div className="card-thumb-placeholder">🌌</div>}
+{t.sessions?.length>1 && <div className="card-count">{t.sessions.length}×</div>}
+{t.magnitude&&t.magnitude!==“N/A”&&<div className="card-badge">mag {t.magnitude}</div>}
+<div className="card-info">
+{t.commonName&&<div className="card-common-name">{t.commonName}</div>}
+<div className="card-name">{t.name}</div>
+<div className="card-meta">
+{t.angularSize&&t.angularSize!==“N/A”&&<span>{t.angularSize}</span>}
+{t.sessions?.[0]?.date&&<span>{fmtDate(t.sessions[0].date)}</span>}
+</div>
+</div>
+</div>
+);
+})}
+<div className="add-btn" onClick={onAdd}>+ Add target</div>
+</div>
+{targets.length===0&&<div className="empty-state"><div className="empty-state-icon">🔭</div><p>No captured targets yet.<br/>Add your first astrophotograph.</p></div>}
+</div>
+);
 }
 
 // ── Detail view ───────────────────────────────────
 function DetailView({ target, onBack, onAddSession, onEditSession, onDelete, onEditTarget }) {
-  const [sessionModal, setSessionModal] = useState(false);
-  const [editSession, setEditSession] = useState(null);
-  const [editTarget, setEditTarget] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [lightbox, setLightbox] = useState(null);
-  const [sessionImages, setSessionImages] = useState({});
+const [sessionModal, setSessionModal] = useState(false);
+const [editSession, setEditSession] = useState(null);
+const [editTarget, setEditTarget] = useState(false);
+const [saving, setSaving] = useState(false);
+const [lightbox, setLightbox] = useState(null);
+const [sessionImages, setSessionImages] = useState({});
 
-  useEffect(()=>{
-    fetchSessionImages(target.id).then(imgs => setSessionImages(imgs)).catch(()=>{});
-  }, [target.id]);
+useEffect(()=>{
+fetchSessionImages(target.id).then(imgs => setSessionImages(imgs)).catch(()=>{});
+}, [target.id]);
 
-  const getImg = (s) => s.image || sessionImages[s.id] || null;
-  const latestImg = [...(target.sessions||[])].reverse().map(s=>getImg(s)).find(Boolean);
-  const totalMins = (target.sessions||[]).reduce((acc,s)=>{
-    const secs = parseFloat(s.subframeTime)*parseInt(s.subframes);
-    return acc+(isNaN(secs)?0:secs/60);
-  },0);
-  const last = (target.sessions||[]).slice(-1)[0];
+const getImg = (s) => s.image || sessionImages[s.id] || null;
+const latestImg = […(target.sessions||[])].reverse().map(s=>getImg(s)).find(Boolean);
+const totalMins = (target.sessions||[]).reduce((acc,s)=>{
+const secs = parseFloat(s.subframeTime)*parseInt(s.subframes);
+return acc+(isNaN(secs)?0:secs/60);
+},0);
+const last = (target.sessions||[]).slice(-1)[0];
 
-  const handleSaveSession = async(s)=>{
-    setSaving(true);
-    await onAddSession(target.id,s);
-    setSaving(false); setSessionModal(false);
-  };
-  const handleEditSession = async(s)=>{
-    setSaving(true);
-    await onEditSession(target.id, editSession.id, s);
-    setSaving(false); setEditSession(null);
-  };
-  const handleEditTarget = async(fields)=>{
-    setSaving(true);
-    await onEditTarget(target.id, fields);
-    setSaving(false); setEditTarget(false);
-  };
+const handleSaveSession = async(s)=>{
+setSaving(true);
+await onAddSession(target.id,s);
+setSaving(false); setSessionModal(false);
+};
+const handleEditSession = async(s)=>{
+setSaving(true);
+await onEditSession(target.id, editSession.id, s);
+setSaving(false); setEditSession(null);
+};
+const handleEditTarget = async(fields)=>{
+setSaving(true);
+await onEditTarget(target.id, fields);
+setSaving(false); setEditTarget(false);
+};
 
-  return (
-    <div className="detail">
-      <button className="back-btn" onClick={onBack}>← Back</button>
-      {latestImg
-        ?<img src={latestImg} className="detail-hero" alt={target.name} onClick={()=>setLightbox(latestImg)} style={{cursor:"zoom-in"}}/>
-        :<div className="detail-hero-placeholder">🌌</div>}
-      <div className="detail-title-row">
-        <div>
-          {target.commonName&&<div style={{fontFamily:"var(--font-display)",fontSize:"1rem",color:"var(--accent2)",fontStyle:"italic",marginBottom:4}}>{target.commonName}</div>}
-          <div className="detail-title"><TargetTitle name={target.name}/></div>
-        </div>
-        <span className="tag-captured">CAPTURED</span>
-        <button className="edit-btn" style={{marginLeft:"auto"}} onClick={()=>setEditTarget(true)}>Edit target</button>
-      </div>
-      <div className="detail-grid">
-        <div className="detail-panel">
-          <div className="panel-title">Object data</div>
-          <div className="data-row"><span className="data-label">Magnitude</span><span className="data-value highlight">{target.magnitude||"—"}</span></div>
-          <div className="data-row"><span className="data-label">Angular size</span><span className="data-value highlight">{target.angularSize||"—"}</span></div>
-          <div className="data-row"><span className="data-label">Sessions</span><span className="data-value">{target.sessions?.length||0}</span></div>
-          {totalMins>0&&<div className="data-row"><span className="data-label">Total integration</span><span className="data-value">{totalMins.toFixed(1)} min</span></div>}
-        </div>
-        {last&&<div className="detail-panel">
-          <div className="panel-title">Latest session</div>
-          <div className="data-row"><span className="data-label">Date</span><span className="data-value">{fmtDate(last.date)}</span></div>
-          <div className="data-row"><span className="data-label">Telescope</span><span className="data-value">{last.telescope||"—"}</span></div>
-          <div className="data-row"><span className="data-label">Camera</span><span className="data-value">{last.camera||"—"}</span></div>
-          <div className="data-row"><span className="data-label">Subframes</span><span className="data-value">{last.subframes||"—"} × {last.subframeTime ? last.subframeTime+"s" : "—"}</span></div>
-          <div className="data-row"><span className="data-label">Filter</span><span className="data-value">{last.filter||"—"}</span></div>
-        </div>}
-      </div>
-      {target.facts&&<div className="facts-box">{target.facts}</div>}
-      <div className="sessions-header">
-        <div className="sessions-title">All sessions ({target.sessions?.length||0})</div>
-        <button className="add-btn-full" onClick={()=>setSessionModal(true)}>+ Add session</button>
-      </div>
-      {(target.sessions||[]).map((s,i)=>(
-        <div key={s.id} className="session-card">
-          {getImg(s)&&<img src={getImg(s)} className="session-img" alt="" onClick={()=>setLightbox(getImg(s))}/>}
-          <button className="session-edit-btn" onClick={()=>setEditSession(s)}>Edit</button>
-          <div className="session-date">{fmtDate(s.date)} · Session {i+1}</div>
-          <div className="data-row"><span className="data-label">Telescope</span><span className="data-value">{s.telescope||"—"}</span></div>
-          <div className="data-row"><span className="data-label">Camera</span><span className="data-value">{s.camera||"—"}</span></div>
-          <div className="data-row"><span className="data-label">Subframes</span><span className="data-value">{s.subframes||"—"} × {s.subframeTime ? s.subframeTime+"s" : "—"}</span></div>
-          <div className="data-row"><span className="data-label">Filter</span><span className="data-value">{s.filter||"—"}</span></div>
-        </div>
-      ))}
-      <div style={{marginTop:20}}>
-        <button className="delete-btn" onClick={()=>onDelete(target.id)}>Delete target</button>
-      </div>
-      {sessionModal&&<SessionModal saving={saving} onSave={handleSaveSession} onClose={()=>setSessionModal(false)}/>}
-      {editSession&&<SessionModal saving={saving} initial={editSession} onSave={handleEditSession} onClose={()=>setEditSession(null)}/>}
-      {editTarget&&<EditTargetModal target={target} saving={saving} onSave={handleEditTarget} onClose={()=>setEditTarget(false)}/>}
-      {lightbox&&<Lightbox src={lightbox} onClose={()=>setLightbox(null)}/>}
-    </div>
-  );
+return (
+<div className="detail">
+<button className="back-btn" onClick={onBack}>← Back</button>
+{latestImg
+?<img src={latestImg} className=“detail-hero” alt={target.name} onClick={()=>setLightbox(latestImg)} style={{cursor:“zoom-in”}}/>
+:<div className="detail-hero-placeholder">🌌</div>}
+<div className="detail-title-row">
+<div>
+{target.commonName&&<div style={{fontFamily:“var(–font-display)”,fontSize:“1rem”,color:“var(–accent2)”,fontStyle:“italic”,marginBottom:4}}>{target.commonName}</div>}
+<div className="detail-title"><TargetTitle name={target.name}/></div>
+</div>
+<span className="tag-captured">CAPTURED</span>
+<button className=“edit-btn” style={{marginLeft:“auto”}} onClick={()=>setEditTarget(true)}>Edit target</button>
+</div>
+<div className="detail-grid">
+<div className="detail-panel">
+<div className="panel-title">Object data</div>
+<div className="data-row"><span className="data-label">Magnitude</span><span className="data-value highlight">{target.magnitude||”—”}</span></div>
+<div className="data-row"><span className="data-label">Angular size</span><span className="data-value highlight">{target.angularSize||”—”}</span></div>
+<div className="data-row"><span className="data-label">Sessions</span><span className="data-value">{target.sessions?.length||0}</span></div>
+{totalMins>0&&<div className="data-row"><span className="data-label">Total integration</span><span className="data-value">{totalMins.toFixed(1)} min</span></div>}
+</div>
+{last&&<div className="detail-panel">
+<div className="panel-title">Latest session</div>
+<div className="data-row"><span className="data-label">Date</span><span className="data-value">{fmtDate(last.date)}</span></div>
+<div className="data-row"><span className="data-label">Telescope</span><span className="data-value">{last.telescope||”—”}</span></div>
+<div className="data-row"><span className="data-label">Camera</span><span className="data-value">{last.camera||”—”}</span></div>
+<div className="data-row"><span className="data-label">Subframes</span><span className="data-value">{last.subframes||”—”} × {last.subframeTime ? last.subframeTime+“s” : “—”}</span></div>
+<div className="data-row"><span className="data-label">Filter</span><span className="data-value">{last.filter||”—”}</span></div>
+</div>}
+</div>
+{target.facts&&<div className="facts-box">{target.facts}</div>}
+<div className="sessions-header">
+<div className="sessions-title">All sessions ({target.sessions?.length||0})</div>
+<button className=“add-btn-full” onClick={()=>setSessionModal(true)}>+ Add session</button>
+</div>
+{(target.sessions||[]).map((s,i)=>(
+<div key={s.id} className="session-card">
+{getImg(s)&&<img src={getImg(s)} className=“session-img” alt=”” onClick={()=>setLightbox(getImg(s))}/>}
+<button className=“session-edit-btn” onClick={()=>setEditSession(s)}>Edit</button>
+<div className="session-date">{fmtDate(s.date)} · Session {i+1}</div>
+<div className="data-row"><span className="data-label">Telescope</span><span className="data-value">{s.telescope||”—”}</span></div>
+<div className="data-row"><span className="data-label">Camera</span><span className="data-value">{s.camera||”—”}</span></div>
+<div className="data-row"><span className="data-label">Subframes</span><span className="data-value">{s.subframes||”—”} × {s.subframeTime ? s.subframeTime+“s” : “—”}</span></div>
+<div className="data-row"><span className="data-label">Filter</span><span className="data-value">{s.filter||”—”}</span></div>
+</div>
+))}
+<div style={{marginTop:20}}>
+<button className=“delete-btn” onClick={()=>onDelete(target.id)}>Delete target</button>
+</div>
+{sessionModal&&<SessionModal saving={saving} onSave={handleSaveSession} onClose={()=>setSessionModal(false)}/>}
+{editSession&&<SessionModal saving={saving} initial={editSession} onSave={handleEditSession} onClose={()=>setEditSession(null)}/>}
+{editTarget&&<EditTargetModal target={target} saving={saving} onSave={handleEditTarget} onClose={()=>setEditTarget(false)}/>}
+{lightbox&&<Lightbox src={lightbox} onClose={()=>setLightbox(null)}/>}
+</div>
+);
 }
 
 // ── Wishlist ──────────────────────────────────────
 function WishlistView({ items, onAdd, onSelect }) {
-  return (
-    <div>
-      <div className="gallery">
-        {items.map(t=>(
-          <div key={t.id} className="wish-card" onClick={()=>onSelect(t.id)}>
-            {t.imageUrl?<img src={t.imageUrl} className="wish-thumb" alt={t.name} onError={e=>{e.target.style.display="none";}}/>:<div className="wish-thumb-ph">🔭</div>}
-            <div className="wish-info">
-              <div className="wish-name">{t.name}</div>
-              <div className="wish-meta">
-                {t.magnitude&&t.magnitude!=="N/A"&&<span>mag {t.magnitude}</span>}
-                {t.angularSize&&t.angularSize!=="N/A"&&<span> · {t.angularSize}</span>}
-              </div>
-            </div>
-          </div>
-        ))}
-        <div className="add-btn" onClick={onAdd}>+ Add to wishlist</div>
-      </div>
-      {items.length===0&&<div className="empty-state"><div className="empty-state-icon">✨</div><p>No wishlist targets yet.<br/>Add objects you dream of capturing.</p></div>}
-    </div>
-  );
+return (
+<div>
+<div className="gallery">
+{items.map(t=>(
+<div key={t.id} className=“wish-card” onClick={()=>onSelect(t.id)}>
+{t.imageUrl?<img src={t.imageUrl} className=“wish-thumb” alt={t.name} onError={e=>{e.target.style.display=“none”;}}/>:<div className="wish-thumb-ph">🔭</div>}
+<div className="wish-info">
+<div className="wish-name">{t.name}</div>
+<div className="wish-meta">
+{t.magnitude&&t.magnitude!==“N/A”&&<span>mag {t.magnitude}</span>}
+{t.angularSize&&t.angularSize!==“N/A”&&<span> · {t.angularSize}</span>}
+</div>
+</div>
+</div>
+))}
+<div className="add-btn" onClick={onAdd}>+ Add to wishlist</div>
+</div>
+{items.length===0&&<div className="empty-state"><div className="empty-state-icon">✨</div><p>No wishlist targets yet.<br/>Add objects you dream of capturing.</p></div>}
+</div>
+);
 }
 
 function WishDetail({ target, onBack, onDelete, onPromote, onEditTarget }) {
-  const [editTarget, setEditTarget] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const handleEdit = async(fields)=>{
-    setSaving(true);
-    await onEditTarget(target.id, fields);
-    setSaving(false); setEditTarget(false);
-  };
-  return (
-    <div className="detail">
-      <button className="back-btn" onClick={onBack}>← Back</button>
-      {target.imageUrl?<img src={target.imageUrl} className="detail-hero" alt={target.name} onError={e=>{e.target.style.display="none";}}/>:<div className="detail-hero-placeholder">🔭</div>}
-      <div className="detail-title-row">
-        <div>
-          {target.commonName&&<div style={{fontFamily:"var(--font-display)",fontSize:"1rem",color:"var(--accent2)",fontStyle:"italic",marginBottom:4}}>{target.commonName}</div>}
-          <div className="detail-title"><TargetTitle name={target.name}/></div>
-        </div>
-        <span className="tag-wish">WISHLIST</span>
-        <button className="edit-btn" style={{marginLeft:"auto"}} onClick={()=>setEditTarget(true)}>Edit target</button>
-      </div>
-      <div className="detail-grid">
-        <div className="detail-panel">
-          <div className="panel-title">Object data</div>
-          <div className="data-row"><span className="data-label">Magnitude</span><span className="data-value highlight">{target.magnitude||"—"}</span></div>
-          <div className="data-row"><span className="data-label">Angular size</span><span className="data-value highlight">{target.angularSize||"—"}</span></div>
-        </div>
-      </div>
-      {target.facts&&<div className="facts-box">{target.facts}</div>}
-      <div style={{marginTop:20,display:"flex",gap:8,flexWrap:"wrap"}}>
-        <button className="promote-btn" onClick={()=>onPromote(target)}>✓ Mark as captured</button>
-        <button className="delete-btn" onClick={()=>onDelete(target.id)}>Remove</button>
-      </div>
-      {editTarget&&<EditTargetModal target={target} saving={saving} onSave={handleEdit} onClose={()=>setEditTarget(false)}/>}
-    </div>
-  );
+const [editTarget, setEditTarget] = useState(false);
+const [saving, setSaving] = useState(false);
+const handleEdit = async(fields)=>{
+setSaving(true);
+await onEditTarget(target.id, fields);
+setSaving(false); setEditTarget(false);
+};
+return (
+<div className="detail">
+<button className="back-btn" onClick={onBack}>← Back</button>
+{target.imageUrl?<img src={target.imageUrl} className=“detail-hero” alt={target.name} onError={e=>{e.target.style.display=“none”;}}/>:<div className="detail-hero-placeholder">🔭</div>}
+<div className="detail-title-row">
+<div>
+{target.commonName&&<div style={{fontFamily:“var(–font-display)”,fontSize:“1rem”,color:“var(–accent2)”,fontStyle:“italic”,marginBottom:4}}>{target.commonName}</div>}
+<div className="detail-title"><TargetTitle name={target.name}/></div>
+</div>
+<span className="tag-wish">WISHLIST</span>
+<button className=“edit-btn” style={{marginLeft:“auto”}} onClick={()=>setEditTarget(true)}>Edit target</button>
+</div>
+<div className="detail-grid">
+<div className="detail-panel">
+<div className="panel-title">Object data</div>
+<div className="data-row"><span className="data-label">Magnitude</span><span className="data-value highlight">{target.magnitude||”—”}</span></div>
+<div className="data-row"><span className="data-label">Angular size</span><span className="data-value highlight">{target.angularSize||”—”}</span></div>
+</div>
+</div>
+{target.facts&&<div className="facts-box">{target.facts}</div>}
+<div style={{marginTop:20,display:“flex”,gap:8,flexWrap:“wrap”}}>
+<button className=“promote-btn” onClick={()=>onPromote(target)}>✓ Mark as captured</button>
+<button className=“delete-btn” onClick={()=>onDelete(target.id)}>Remove</button>
+</div>
+{editTarget&&<EditTargetModal target={target} saving={saving} onSave={handleEdit} onClose={()=>setEditTarget(false)}/>}
+</div>
+);
 }
 
 // ── App root ──────────────────────────────────────
 function App() {
-  const [targets, setTargets] = useState([]);
-  const [wishlist, setWishlist] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("gallery");
-  const [selected, setSelected] = useState(null);
-  const [addModal, setAddModal] = useState(null);
-  const [promoteItem, setPromoteItem] = useState(null);
-  const [toast, setToast] = useState(null);
+const [targets, setTargets] = useState([]);
+const [wishlist, setWishlist] = useState([]);
+const [loading, setLoading] = useState(true);
+const [tab, setTab] = useState(“gallery”);
+const [selected, setSelected] = useState(null);
+const [addModal, setAddModal] = useState(null);
+const [promoteItem, setPromoteItem] = useState(null);
+const [toast, setToast] = useState(null);
 
-  const showToast = (msg,error=false)=>{ setToast({msg,error}); setTimeout(()=>setToast(null),3000); };
+const showToast = (msg,error=false)=>{ setToast({msg,error}); setTimeout(()=>setToast(null),3000); };
 
-  useEffect(()=>{
-    loadAll().then(all=>{
-      setTargets(all.filter(t=>t.type==="captured"));
-      setWishlist(all.filter(t=>t.type==="wishlist"));
-      setLoading(false);
-    }).catch(()=>{ showToast("Could not connect to database",true); setLoading(false); });
-  },[]);
+useEffect(()=>{
+loadAll().then(all=>{
+setTargets(all.filter(t=>t.type===“captured”));
+setWishlist(all.filter(t=>t.type===“wishlist”));
+setLoading(false);
+}).catch(()=>{ showToast(“Could not connect to database”,true); setLoading(false); });
+},[]);
 
-  const handleSaveCaptured = async(t)=>{
-    try {
-      const firstImg = t.sessions?.[0]?.image;
-      const thumb = firstImg ? await compressToThumbnail(firstImg) : null;
-      await insertTarget({...t, thumbnail: thumb});
-      if (t.sessions?.[0]) await insertSession(t.id, t.sessions[0]);
-      if (promoteItem) { await deleteTarget(promoteItem.id); setWishlist(w=>w.filter(x=>x.id!==promoteItem.id)); setPromoteItem(null); }
-      setTargets(ts=>[t,...ts]);
-      setAddModal(null); setTab("gallery"); setSelected(t.id);
-      showToast("Target saved ✓");
-    } catch { showToast("Failed to save target",true); }
-  };
+const handleSaveCaptured = async(t)=>{
+try {
+const firstImg = t.sessions?.[0]?.image;
+const thumb = firstImg ? await compressToThumbnail(firstImg) : null;
+await insertTarget({…t, thumbnail: thumb});
+if (t.sessions?.[0]) await insertSession(t.id, t.sessions[0]);
+if (promoteItem) { await deleteTarget(promoteItem.id); setWishlist(w=>w.filter(x=>x.id!==promoteItem.id)); setPromoteItem(null); }
+setTargets(ts=>[{…t, thumbnail: thumb},…ts]);
+setAddModal(null); setTab(“gallery”); setSelected(t.id);
+showToast(“Target saved ✓”);
+} catch { showToast(“Failed to save target”,true); }
+};
 
-  const handleSaveWish = async(item)=>{
-    try { await insertTarget(item); setWishlist(w=>[item,...w]); setAddModal(null); showToast("Added to wishlist ✓"); }
-    catch { showToast("Failed to save",true); }
-  };
+const handleSaveWish = async(item)=>{
+try { await insertTarget(item); setWishlist(w=>[item,…w]); setAddModal(null); showToast(“Added to wishlist ✓”); }
+catch { showToast(“Failed to save”,true); }
+};
 
-  const handleAddSession = async(targetId, s)=>{
-    const obj = { id:Date.now().toString(), ...s };
-    try {
-      await insertSession(targetId, obj);
-      if (s.image) {
-        const thumb = await compressToThumbnail(s.image);
-        if (thumb) await patchTarget(targetId, { thumbnail: thumb });
-        setTargets(ts=>ts.map(t=>t.id===targetId?{...t,thumbnail:thumb||t.thumbnail,sessions:[...(t.sessions||[]),obj]}:t));
-      } else {
-        setTargets(ts=>ts.map(t=>t.id===targetId?{...t,sessions:[...(t.sessions||[]),obj]}:t));
-      }
-      showToast("Session saved ✓");
-    } catch { showToast("Failed to save session",true); }
-  };
+const handleAddSession = async(targetId, s)=>{
+const obj = { id:Date.now().toString(), …s };
+try {
+await insertSession(targetId, obj);
+if (s.image) {
+const thumb = await compressToThumbnail(s.image);
+if (thumb) await patchTarget(targetId, { thumbnail: thumb });
+setTargets(ts=>ts.map(t=>t.id===targetId?{…t,thumbnail:thumb||t.thumbnail,sessions:[…(t.sessions||[]),obj]}:t));
+} else {
+setTargets(ts=>ts.map(t=>t.id===targetId?{…t,sessions:[…(t.sessions||[]),obj]}:t));
+}
+showToast(“Session saved ✓”);
+} catch { showToast(“Failed to save session”,true); }
+};
 
-  const handleEditSession = async(targetId, sessionId, s)=>{
-    try {
-      await patchSession(sessionId, s);
-      setTargets(ts=>ts.map(t=>t.id===targetId?{...t,sessions:(t.sessions||[]).map(ss=>ss.id===sessionId?{...ss,...s,subframeTime:s.subframeTime}:ss)}:t));
-      showToast("Session updated ✓");
-    } catch { showToast("Failed to update session",true); }
-  };
+const handleEditSession = async(targetId, sessionId, s)=>{
+try {
+await patchSession(sessionId, s);
+setTargets(ts=>ts.map(t=>t.id===targetId?{…t,sessions:(t.sessions||[]).map(ss=>ss.id===sessionId?{…ss,…s,subframeTime:s.subframeTime}:ss)}:t));
+showToast(“Session updated ✓”);
+} catch { showToast(“Failed to update session”,true); }
+};
 
-  const handleEditTarget = async(id, fields)=>{
-    try {
-      await patchTarget(id, { name:fields.name, common_name:fields.commonName||null, facts:fields.facts, magnitude:fields.magnitude, angular_size:fields.angularSize });
-      const update = t=>t.id===id?{...t,...fields,commonName:fields.commonName}:t;
-      setTargets(ts=>ts.map(update));
-      setWishlist(w=>w.map(update));
-      showToast("Target updated ✓");
-    } catch { showToast("Failed to update target",true); }
-  };
+const handleEditTarget = async(id, fields)=>{
+try {
+await patchTarget(id, { name:fields.name, common_name:fields.commonName||null, facts:fields.facts, magnitude:fields.magnitude, angular_size:fields.angularSize });
+const update = t=>t.id===id?{…t,…fields,commonName:fields.commonName}:t;
+setTargets(ts=>ts.map(update));
+setWishlist(w=>w.map(update));
+showToast(“Target updated ✓”);
+} catch { showToast(“Failed to update target”,true); }
+};
 
-  const handleDeleteTarget = async(id)=>{
-    try { await deleteTarget(id); setTargets(ts=>ts.filter(t=>t.id!==id)); setSelected(null); showToast("Deleted"); }
-    catch { showToast("Failed to delete",true); }
-  };
+const handleDeleteTarget = async(id)=>{
+try { await deleteTarget(id); setTargets(ts=>ts.filter(t=>t.id!==id)); setSelected(null); showToast(“Deleted”); }
+catch { showToast(“Failed to delete”,true); }
+};
 
-  const handleDeleteWish = async(id)=>{
-    try { await deleteTarget(id); setWishlist(w=>w.filter(x=>x.id!==id)); setSelected(null); showToast("Removed from wishlist"); }
-    catch { showToast("Failed to remove",true); }
-  };
+const handleDeleteWish = async(id)=>{
+try { await deleteTarget(id); setWishlist(w=>w.filter(x=>x.id!==id)); setSelected(null); showToast(“Removed from wishlist”); }
+catch { showToast(“Failed to remove”,true); }
+};
 
-  const handlePromote = (item)=>{ setPromoteItem(item); setSelected(null); setTab("gallery"); setAddModal("captured"); };
+const handlePromote = (item)=>{ setPromoteItem(item); setSelected(null); setTab(“gallery”); setAddModal(“captured”); };
 
-  const selTarget = tab==="gallery" ? targets.find(t=>t.id===selected) : wishlist.find(t=>t.id===selected);
+const selTarget = tab===“gallery” ? targets.find(t=>t.id===selected) : wishlist.find(t=>t.id===selected);
 
-  if (loading) return (
-    <div className="app">
-      <div className="header"><div className="header-title">Astro<em>Journal</em></div></div>
-      <div className="loading-screen"><span className="spinner"/><span style={{color:"var(--muted)",fontSize:12}}>Loading your journal…</span></div>
-    </div>
-  );
+if (loading) return (
+<div className="app">
+<div className="header"><div className="header-title">Astro<em>Journal</em></div></div>
+<div className="loading-screen"><span className="spinner"/><span style={{color:“var(–muted)”,fontSize:12}}>Loading your journal…</span></div>
+</div>
+);
 
-  return (
-    <div className="app">
-      <div className="header">
-        <div className="header-title">Astro<em>Journal</em></div>
-        <div className="header-sub">{targets.length} captured · {wishlist.length} targets</div>
-      </div>
-      {!selected&&(
-        <div className="tabs">
-          <button className={`tab ${tab==="gallery"?"active":""}`} onClick={()=>setTab("gallery")}>Gallery</button>
-          <button className={`tab ${tab==="wishlist"?"active":""}`} onClick={()=>setTab("wishlist")}>Wishlist</button>
-        </div>
-      )}
-      {tab==="gallery"&&!selected&&<Gallery targets={targets} onSelect={setSelected} onAdd={()=>setAddModal("captured")}/>}
-      {tab==="gallery"&&selected&&selTarget&&<DetailView target={selTarget} onBack={()=>setSelected(null)} onAddSession={handleAddSession} onEditSession={handleEditSession} onDelete={handleDeleteTarget} onEditTarget={handleEditTarget}/>}
-      {tab==="wishlist"&&!selected&&<WishlistView items={wishlist} onAdd={()=>setAddModal("wishlist")} onSelect={setSelected}/>}
-      {tab==="wishlist"&&selected&&selTarget&&<WishDetail target={selTarget} onBack={()=>setSelected(null)} onDelete={handleDeleteWish} onPromote={handlePromote} onEditTarget={handleEditTarget}/>}
-      {addModal==="captured"&&<AddTargetModal type="captured" onSave={handleSaveCaptured} onClose={()=>{setAddModal(null);setPromoteItem(null);}}/>}
-      {addModal==="wishlist"&&<AddTargetModal type="wishlist" onSave={handleSaveWish} onClose={()=>setAddModal(null)}/>}
-      {toast&&<Toast msg={toast.msg} error={toast.error}/>}
-    </div>
-  );
+return (
+<div className="app">
+<div className="header">
+<div className="header-title">Astro<em>Journal</em></div>
+<div className="header-sub">{targets.length} captured · {wishlist.length} targets</div>
+</div>
+{!selected&&(
+<div className="tabs">
+<button className={`tab ${tab==="gallery"?"active":""}`} onClick={()=>setTab(“gallery”)}>Gallery</button>
+<button className={`tab ${tab==="wishlist"?"active":""}`} onClick={()=>setTab(“wishlist”)}>Wishlist</button>
+</div>
+)}
+{tab===“gallery”&&!selected&&<Gallery targets={targets} onSelect={setSelected} onAdd={()=>setAddModal(“captured”)}/>}
+{tab===“gallery”&&selected&&selTarget&&<DetailView target={selTarget} onBack={()=>setSelected(null)} onAddSession={handleAddSession} onEditSession={handleEditSession} onDelete={handleDeleteTarget} onEditTarget={handleEditTarget}/>}
+{tab===“wishlist”&&!selected&&<WishlistView items={wishlist} onAdd={()=>setAddModal(“wishlist”)} onSelect={setSelected}/>}
+{tab===“wishlist”&&selected&&selTarget&&<WishDetail target={selTarget} onBack={()=>setSelected(null)} onDelete={handleDeleteWish} onPromote={handlePromote} onEditTarget={handleEditTarget}/>}
+{addModal===“captured”&&<AddTargetModal type=“captured” onSave={handleSaveCaptured} onClose={()=>{setAddModal(null);setPromoteItem(null);}}/>}
+{addModal===“wishlist”&&<AddTargetModal type=“wishlist” onSave={handleSaveWish} onClose={()=>setAddModal(null)}/>}
+{toast&&<Toast msg={toast.msg} error={toast.error}/>}
+</div>
+);
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+ReactDOM.createRoot(document.getElementById(“root”)).render(<App/>);
 </script>
+
 </body>
 </html>
