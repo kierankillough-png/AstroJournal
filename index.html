@@ -175,7 +175,7 @@ async function sbFetch(path, method="GET", body=null) {
 async function loadAll() {
   const [targets, sessions] = await Promise.all([
     sbFetch("/rest/v1/targets?order=created_at.desc&select=*"),
-    sbFetch("/rest/v1/imaging_sessions?order=created_at.asc&select=*"),
+    sbFetch("/rest/v1/imaging_sessions?order=created_at.asc&select=id,target_id,telescope,camera,subframes,subframe_time,filter,date,created_at"),
   ]);
   return (targets||[]).map(t => ({
     ...t, angularSize: t.angular_size, imageUrl: t.image_url, commonName: t.common_name||'',
@@ -191,6 +191,10 @@ async function patchTarget(id, fields) {
 }
 async function deleteTarget(id) {
   await sbFetch(`/rest/v1/targets?id=eq.${id}`,"DELETE");
+}
+async function fetchSessionImages(targetId) {
+  const rows = await sbFetch(`/rest/v1/imaging_sessions?target_id=eq.${targetId}&select=id,image`);
+  return (rows||[]).reduce((acc, r) => { acc[r.id] = r.image; return acc; }, {});
 }
 async function insertSession(targetId, s) {
   return sbFetch("/rest/v1/imaging_sessions","POST",{ id:s.id, target_id:targetId, telescope:s.telescope, camera:s.camera, subframes:s.subframes, subframe_time:s.subframeTime, filter:s.filter, date:s.date||null, image:s.image||null });
@@ -520,8 +524,14 @@ function DetailView({ target, onBack, onAddSession, onEditSession, onDelete, onE
   const [editTarget, setEditTarget] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lightbox, setLightbox] = useState(null);
+  const [sessionImages, setSessionImages] = useState({});
 
-  const latestImg = [...(target.sessions||[])].reverse().find(s=>s.image)?.image;
+  useEffect(()=>{
+    fetchSessionImages(target.id).then(imgs => setSessionImages(imgs)).catch(()=>{});
+  }, [target.id]);
+
+  const getImg = (s) => s.image || sessionImages[s.id] || null;
+  const latestImg = [...(target.sessions||[])].reverse().map(s=>getImg(s)).find(Boolean);
   const totalMins = (target.sessions||[]).reduce((acc,s)=>{
     const secs = parseFloat(s.subframeTime)*parseInt(s.subframes);
     return acc+(isNaN(secs)?0:secs/60);
@@ -582,7 +592,7 @@ function DetailView({ target, onBack, onAddSession, onEditSession, onDelete, onE
       </div>
       {(target.sessions||[]).map((s,i)=>(
         <div key={s.id} className="session-card">
-          {s.image&&<img src={s.image} className="session-img" alt="" onClick={()=>setLightbox(s.image)}/>}
+          {getImg(s)&&<img src={getImg(s)} className="session-img" alt="" onClick={()=>setLightbox(getImg(s))}/>}
           <button className="session-edit-btn" onClick={()=>setEditSession(s)}>Edit</button>
           <div className="session-date">{fmtDate(s.date)} · Session {i+1}</div>
           <div className="data-row"><span className="data-label">Telescope</span><span className="data-value">{s.telescope||"—"}</span></div>
