@@ -173,23 +173,19 @@ async function sbFetch(path, method="GET", body=null) {
 }
 
 async function loadAll() {
-  const [targets, sessions, thumbs] = await Promise.all([
+  const [targets, sessions] = await Promise.all([
     sbFetch("/rest/v1/targets?order=created_at.desc&select=*"),
     sbFetch("/rest/v1/imaging_sessions?order=created_at.asc&select=id,target_id,telescope,camera,subframes,subframe_time,filter,date,created_at"),
-    sbFetch("/rest/v1/imaging_sessions?select=target_id,image&image=not.is.null&order=created_at.desc&limit=50"),
   ]);
-  // Build a map of target_id -> most recent thumbnail
-  const thumbMap = {};
-  (thumbs||[]).forEach(r => { if (!thumbMap[r.target_id]) thumbMap[r.target_id] = r.image; });
   return (targets||[]).map(t => ({
     ...t, angularSize: t.angular_size, imageUrl: t.image_url, commonName: t.common_name||'',
-    thumbnail: thumbMap[t.id] || null,
+    thumbnail: t.thumbnail || null,
     sessions: (sessions||[]).filter(s=>s.target_id===t.id).map(s=>({...s, subframeTime:s.subframe_time})),
   }));
 }
 
 async function insertTarget(t) {
-  return sbFetch("/rest/v1/targets","POST",{ id:t.id, name:t.name, common_name:t.commonName||null, facts:t.facts, magnitude:t.magnitude, angular_size:t.angularSize, type:t.type, image_url:t.imageUrl||null });
+  return sbFetch("/rest/v1/targets","POST",{ id:t.id, name:t.name, common_name:t.commonName||null, facts:t.facts, magnitude:t.magnitude, angular_size:t.angularSize, type:t.type, image_url:t.imageUrl||null, thumbnail:t.thumbnail||null });
 }
 async function patchTarget(id, fields) {
   return sbFetch(`/rest/v1/targets?id=eq.${id}`,"PATCH", fields);
@@ -272,6 +268,22 @@ function fmtDate(d) {
 }
 function toBase64(file) {
   return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});
+}
+async function compressToThumbnail(base64) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const size = 200;
+      const ratio = Math.min(size/img.width, size/img.height);
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.7));
+    };
+    img.onerror = () => resolve(null);
+    img.src = base64;
+  });
 }
 function TargetTitle({name}) {
   if (!name.includes("–")) return <>{name}</>;
@@ -701,7 +713,9 @@ function App() {
 
   const handleSaveCaptured = async(t)=>{
     try {
-      await insertTarget(t);
+      const firstImg = t.sessions?.[0]?.image;
+      const thumb = firstImg ? await compressToThumbnail(firstImg) : null;
+      await insertTarget({...t, thumbnail: thumb});
       if (t.sessions?.[0]) await insertSession(t.id, t.sessions[0]);
       if (promoteItem) { await deleteTarget(promoteItem.id); setWishlist(w=>w.filter(x=>x.id!==promoteItem.id)); setPromoteItem(null); }
       setTargets(ts=>[t,...ts]);
@@ -719,7 +733,13 @@ function App() {
     const obj = { id:Date.now().toString(), ...s };
     try {
       await insertSession(targetId, obj);
-      setTargets(ts=>ts.map(t=>t.id===targetId?{...t,sessions:[...(t.sessions||[]),obj]}:t));
+      if (s.image) {
+        const thumb = await compressToThumbnail(s.image);
+        if (thumb) await patchTarget(targetId, { thumbnail: thumb });
+        setTargets(ts=>ts.map(t=>t.id===targetId?{...t,thumbnail:thumb||t.thumbnail,sessions:[...(t.sessions||[]),obj]}:t));
+      } else {
+        setTargets(ts=>ts.map(t=>t.id===targetId?{...t,sessions:[...(t.sessions||[]),obj]}:t));
+      }
       showToast("Session saved ✓");
     } catch { showToast("Failed to save session",true); }
   };
