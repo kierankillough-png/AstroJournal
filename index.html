@@ -173,12 +173,17 @@ async function sbFetch(path, method="GET", body=null) {
 }
 
 async function loadAll() {
-  const [targets, sessions] = await Promise.all([
+  const [targets, sessions, thumbs] = await Promise.all([
     sbFetch("/rest/v1/targets?order=created_at.desc&select=*"),
     sbFetch("/rest/v1/imaging_sessions?order=created_at.asc&select=id,target_id,telescope,camera,subframes,subframe_time,filter,date,created_at"),
+    sbFetch("/rest/v1/imaging_sessions?select=target_id,image&image=not.is.null&order=created_at.desc&limit=50"),
   ]);
+  // Build a map of target_id -> most recent thumbnail
+  const thumbMap = {};
+  (thumbs||[]).forEach(r => { if (!thumbMap[r.target_id]) thumbMap[r.target_id] = r.image; });
   return (targets||[]).map(t => ({
     ...t, angularSize: t.angular_size, imageUrl: t.image_url, commonName: t.common_name||'',
+    thumbnail: thumbMap[t.id] || null,
     sessions: (sessions||[]).filter(s=>s.target_id===t.id).map(s=>({...s, subframeTime:s.subframe_time})),
   }));
 }
@@ -493,7 +498,7 @@ function Gallery({ targets, onSelect, onAdd }) {
       </div>
       <div className="gallery">
         {sorted.map(t => {
-          const thumb = [...(t.sessions||[])].reverse().find(s=>s.image)?.image;
+          const thumb = t.thumbnail;
           return (
             <div key={t.id} className="card" onClick={()=>onSelect(t.id)}>
               {thumb?<img src={thumb} className="card-thumb" alt={t.name}/>:<div className="card-thumb-placeholder">🌌</div>}
