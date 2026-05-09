@@ -134,6 +134,15 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-mono);
 .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 16px; color: var(--muted); }
 .loading-screen .spinner { width: 24px; height: 24px; }
 .detail-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.gallery-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.sort-btn { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 6px 14px; color: var(--muted); font-family: var(--font-mono); font-size: 11px; cursor: pointer; letter-spacing: 0.08em; transition: all 0.2s; }
+.sort-btn:hover { color: var(--text); border-color: rgba(100,140,220,0.3); }
+.sort-btn.active { color: var(--accent); border-color: rgba(74,124,247,0.4); background: rgba(74,124,247,0.06); }
+.card-common-name { font-size: 11px; color: var(--accent2); margin-bottom: 3px; font-style: italic; }
+.combobox-wrap { position: relative; }
+.combobox-list { position: absolute; top: 100%; left: 0; right: 0; background: #0d1426; border: 1px solid rgba(100,140,220,0.25); border-top: none; border-radius: 0 0 4px 4px; z-index: 50; max-height: 180px; overflow-y: auto; }
+.combobox-opt { padding: 8px 12px; font-size: 13px; cursor: pointer; color: var(--text); font-family: var(--font-mono); }
+.combobox-opt:hover { background: rgba(74,124,247,0.12); }
 </style>
 </head>
 <body>
@@ -169,13 +178,13 @@ async function loadAll() {
     sbFetch("/rest/v1/sessions?order=created_at.asc&select=*"),
   ]);
   return (targets||[]).map(t => ({
-    ...t, angularSize: t.angular_size, imageUrl: t.image_url,
+    ...t, angularSize: t.angular_size, imageUrl: t.image_url, commonName: t.common_name||'',
     sessions: (sessions||[]).filter(s=>s.target_id===t.id).map(s=>({...s, subframeTime:s.subframe_time})),
   }));
 }
 
 async function insertTarget(t) {
-  return sbFetch("/rest/v1/targets","POST",{ id:t.id, name:t.name, facts:t.facts, magnitude:t.magnitude, angular_size:t.angularSize, type:t.type, image_url:t.imageUrl||null });
+  return sbFetch("/rest/v1/targets","POST",{ id:t.id, name:t.name, common_name:t.commonName||null, facts:t.facts, magnitude:t.magnitude, angular_size:t.angularSize, type:t.type, image_url:t.imageUrl||null });
 }
 async function patchTarget(id, fields) {
   return sbFetch(`/rest/v1/targets?id=eq.${id}`,"PATCH", fields);
@@ -260,23 +269,46 @@ function TargetTitle({name}) {
   const [a,...rest]=name.split("–"); return <>{a.trim()} <em>– {rest.join("–").trim()}</em></>;
 }
 
+// ── Combobox (select + free type) ────────────────
+function Combobox({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+  useEffect(()=>{
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return ()=>document.removeEventListener("mousedown", handler);
+  },[]);
+  const filtered = options.filter(o=>o.toLowerCase().includes((value||"").toLowerCase()));
+  return (
+    <div className="combobox-wrap" ref={ref}>
+      <input className="form-input" value={value||""} placeholder={placeholder||"Select or type…"}
+        onChange={e=>{onChange(e.target.value);setOpen(true);}}
+        onFocus={()=>setOpen(true)} />
+      {open && (
+        <div className="combobox-list">
+          {filtered.map(o=>(
+            <div key={o} className="combobox-opt" onMouseDown={e=>{e.preventDefault();onChange(o);setOpen(false);}}>
+              {o}
+            </div>
+          ))}
+          {filtered.length===0&&<div className="combobox-opt" style={{opacity:0.4}}>No matches — type to use custom</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Shared session fields component ───────────────
 function SessionFields({ f, set }) {
   return (
     <div className="form-grid">
       <div className="form-row">
         <label className="form-label">Telescope</label>
-        <select className="form-select" value={f.telescope} onChange={e=>set("telescope",e.target.value)}>
-          <option value="">Select…</option>
-          {TELESCOPES.map(t=><option key={t} value={t}>{t}</option>)}
-        </select>
+        <Combobox value={f.telescope} onChange={v=>set("telescope",v)} options={TELESCOPES} />
       </div>
       <div className="form-row">
         <label className="form-label">Camera</label>
-        <select className="form-select" value={f.camera} onChange={e=>set("camera",e.target.value)}>
-          <option value="">Select…</option>
-          {CAMERAS.map(c=><option key={c} value={c}>{c}</option>)}
-        </select>
+        <Combobox value={f.camera} onChange={v=>set("camera",v)} options={CAMERAS} />
       </div>
       <div className="form-row">
         <label className="form-label">Subframes</label>
@@ -288,10 +320,7 @@ function SessionFields({ f, set }) {
       </div>
       <div className="form-row">
         <label className="form-label">Filter</label>
-        <select className="form-select" value={f.filter} onChange={e=>set("filter",e.target.value)}>
-          <option value="">Select…</option>
-          {FILTERS.map(fi=><option key={fi} value={fi}>{fi}</option>)}
-        </select>
+        <Combobox value={f.filter} onChange={v=>set("filter",v)} options={FILTERS} />
       </div>
       <div className="form-row">
         <label className="form-label">Date</label>
@@ -354,6 +383,7 @@ function SessionModal({ onSave, onClose, saving, initial }) {
 // ── Edit target modal ─────────────────────────────
 function EditTargetModal({ target, onSave, onClose, saving }) {
   const [name, setName] = useState(target.name||"");
+  const [commonName, setCommonName] = useState(target.commonName||"");
   const [facts, setFacts] = useState(target.facts||"");
   const [magnitude, setMagnitude] = useState(target.magnitude||"");
   const [angularSize, setAngularSize] = useState(target.angularSize||"");
@@ -364,6 +394,10 @@ function EditTargetModal({ target, onSave, onClose, saving }) {
         <div className="form-row">
           <label className="form-label">Target name</label>
           <input className="form-input" value={name} onChange={e=>setName(e.target.value)} />
+        </div>
+        <div className="form-row">
+          <label className="form-label">Common name (optional)</label>
+          <input className="form-input" placeholder="e.g. Bode's Galaxy" value={commonName} onChange={e=>setCommonName(e.target.value)} />
         </div>
         <div className="form-row">
           <label className="form-label">Apparent magnitude</label>
@@ -379,7 +413,7 @@ function EditTargetModal({ target, onSave, onClose, saving }) {
         </div>
         <div className="modal-actions">
           <button className="btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="btn-save" onClick={()=>onSave({name,facts,magnitude,angularSize})} disabled={saving}>
+          <button className="btn-save" onClick={()=>onSave({name,commonName,facts,magnitude,angularSize})} disabled={saving}>
             {saving?<span className="spinner"/>:"Save changes"}
           </button>
         </div>
@@ -436,10 +470,25 @@ function AddTargetModal({ onSave, onClose, type }) {
 
 // ── Gallery ───────────────────────────────────────
 function Gallery({ targets, onSelect, onAdd }) {
+  const [sort, setSort] = useState("date");
+  const sorted = [...targets].sort((a,b)=>{
+    if (sort==="name") return a.name.localeCompare(b.name);
+    if (sort==="date") {
+      const da = a.sessions?.[0]?.date||"";
+      const db = b.sessions?.[0]?.date||"";
+      return db.localeCompare(da);
+    }
+    return 0;
+  });
   return (
     <div>
+      <div className="gallery-controls">
+        <span style={{fontSize:11,color:"var(--muted)",letterSpacing:"0.1em",textTransform:"uppercase"}}>Sort:</span>
+        <button className={`sort-btn ${sort==="date"?"active":""}`} onClick={()=>setSort("date")}>Date</button>
+        <button className={`sort-btn ${sort==="name"?"active":""}`} onClick={()=>setSort("name")}>Name</button>
+      </div>
       <div className="gallery">
-        {targets.map(t => {
+        {sorted.map(t => {
           const thumb = [...(t.sessions||[])].reverse().find(s=>s.image)?.image;
           return (
             <div key={t.id} className="card" onClick={()=>onSelect(t.id)}>
@@ -447,6 +496,7 @@ function Gallery({ targets, onSelect, onAdd }) {
               {t.sessions?.length>1 && <div className="card-count">{t.sessions.length}×</div>}
               {t.magnitude&&t.magnitude!=="N/A"&&<div className="card-badge">mag {t.magnitude}</div>}
               <div className="card-info">
+                {t.commonName&&<div className="card-common-name">{t.commonName}</div>}
                 <div className="card-name">{t.name}</div>
                 <div className="card-meta">
                   {t.angularSize&&t.angularSize!=="N/A"&&<span>{t.angularSize}</span>}
@@ -501,7 +551,10 @@ function DetailView({ target, onBack, onAddSession, onEditSession, onDelete, onE
         ?<img src={latestImg} className="detail-hero" alt={target.name} onClick={()=>setLightbox(latestImg)} style={{cursor:"zoom-in"}}/>
         :<div className="detail-hero-placeholder">🌌</div>}
       <div className="detail-title-row">
-        <div className="detail-title"><TargetTitle name={target.name}/></div>
+        <div>
+          {target.commonName&&<div style={{fontFamily:"var(--font-display)",fontSize:"1rem",color:"var(--accent2)",fontStyle:"italic",marginBottom:4}}>{target.commonName}</div>}
+          <div className="detail-title"><TargetTitle name={target.name}/></div>
+        </div>
         <span className="tag-captured">CAPTURED</span>
         <button className="edit-btn" style={{marginLeft:"auto"}} onClick={()=>setEditTarget(true)}>Edit target</button>
       </div>
@@ -586,7 +639,10 @@ function WishDetail({ target, onBack, onDelete, onPromote, onEditTarget }) {
       <button className="back-btn" onClick={onBack}>← Back</button>
       {target.imageUrl?<img src={target.imageUrl} className="detail-hero" alt={target.name} onError={e=>{e.target.style.display="none";}}/>:<div className="detail-hero-placeholder">🔭</div>}
       <div className="detail-title-row">
-        <div className="detail-title"><TargetTitle name={target.name}/></div>
+        <div>
+          {target.commonName&&<div style={{fontFamily:"var(--font-display)",fontSize:"1rem",color:"var(--accent2)",fontStyle:"italic",marginBottom:4}}>{target.commonName}</div>}
+          <div className="detail-title"><TargetTitle name={target.name}/></div>
+        </div>
         <span className="tag-wish">WISHLIST</span>
         <button className="edit-btn" style={{marginLeft:"auto"}} onClick={()=>setEditTarget(true)}>Edit target</button>
       </div>
@@ -663,8 +719,8 @@ function App() {
 
   const handleEditTarget = async(id, fields)=>{
     try {
-      await patchTarget(id, { name:fields.name, facts:fields.facts, magnitude:fields.magnitude, angular_size:fields.angularSize });
-      const update = t=>t.id===id?{...t,...fields}:t;
+      await patchTarget(id, { name:fields.name, common_name:fields.commonName||null, facts:fields.facts, magnitude:fields.magnitude, angular_size:fields.angularSize });
+      const update = t=>t.id===id?{...t,...fields,commonName:fields.commonName}:t;
       setTargets(ts=>ts.map(update));
       setWishlist(w=>w.map(update));
       showToast("Target updated ✓");
