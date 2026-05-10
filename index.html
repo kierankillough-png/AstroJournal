@@ -39,7 +39,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-mono);
   pointer-events: none; z-index: 0;
 }
 .app { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 24px 20px calc(60px + var(--safe-bottom)); }
-.header { display: flex; align-items: baseline; gap: 20px; margin-bottom: 48px; padding-bottom: 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.header { display: flex; align-items: center; gap: 20px; margin-bottom: 48px; padding-bottom: 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .header-title { font-family: var(--font-display); font-size: 2.8rem; font-weight: 300; letter-spacing: 0.05em; color: #fff; line-height: 1; }
 .header-title em { font-style: italic; color: var(--accent2); }
 .header-sub { font-size: 11px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-left: auto; }
@@ -137,6 +137,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-mono);
 .header-handle { font-size: 11px; color: #6278a8; letter-spacing: 0.1em; margin-top: 4px; }
 .header-handle a { color: #a78bfa; text-decoration: none; transition: opacity 0.2s; }
 .header-handle a:hover { opacity: 0.75; }
+.logout-btn { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 5px 12px; color: var(--muted); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; cursor: pointer; transition: all 0.2s; margin-left: auto; }
+.logout-btn:hover { color: var(--danger); border-color: rgba(224,90,106,0.35); }
 .password-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 20px; }
 .password-screen .header-title { font-family: var(--font-display); font-size: 2.8rem; font-weight: 300; color: #fff; }
 .password-screen .header-title em { font-style: italic; color: var(--accent2); }
@@ -180,7 +182,7 @@ async function hashPassword(pw) {
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 function isAuthed() {
-  return IS_READONLY || sessionStorage.getItem("astro_auth") === "1";
+  return IS_READONLY || localStorage.getItem("astro_auth") === "1";
 }
 
 // ── Constants ─────────────────────────────────────
@@ -530,7 +532,7 @@ function PasswordScreen({ onUnlock }) {
     setChecking(true);
     const hash = await hashPassword(pw);
     if (hash === PASSWORD_HASH) {
-      sessionStorage.setItem("astro_auth", "1");
+      localStorage.setItem("astro_auth", "1");
       onUnlock();
     } else {
       setError(true);
@@ -867,6 +869,7 @@ function App() {
           <div className="header-handle"><a href="https://www.instagram.com/astromanc" target="_blank" rel="noopener noreferrer">@AstroManc</a></div>
         </div>
         <div className="header-sub">{IS_READONLY ? "public gallery" : `${targets.length} captured · ${wishlist.length} targets`}</div>
+        {!IS_READONLY && <button className="logout-btn" onClick={()=>{ localStorage.removeItem("astro_auth"); setAuthed(false); }}>Lock</button>}
       </div>
       {!selected&&!IS_READONLY&&(
         <div className="tabs">
