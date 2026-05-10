@@ -133,6 +133,16 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-mono);
 .toast.error { border-color: rgba(224,90,106,0.4); color: var(--danger); }
 .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 16px; color: var(--muted); }
 .loading-screen .spinner { width: 24px; height: 24px; }
+.password-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 20px; }
+.password-screen .header-title { font-family: var(--font-display); font-size: 2.8rem; font-weight: 300; color: #fff; }
+.password-screen .header-title em { font-style: italic; color: var(--accent2); }
+.password-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 32px; width: 100%; max-width: 360px; text-align: center; }
+.password-box p { font-size: 11px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 16px; }
+.password-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; color: var(--text); font-family: var(--font-mono); font-size: 14px; outline: none; text-align: center; letter-spacing: 0.2em; -webkit-appearance: none; margin-bottom: 12px; }
+.password-input:focus { border-color: rgba(74,124,247,0.5); }
+.password-input.error { border-color: rgba(224,90,106,0.5); animation: shake 0.3s ease; }
+.password-btn { width: 100%; background: var(--accent); border: none; border-radius: 4px; padding: 10px; color: #fff; font-family: var(--font-mono); font-size: 12px; cursor: pointer; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
 .detail-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .gallery-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .sort-btn { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 6px 14px; color: var(--muted); font-family: var(--font-mono); font-size: 11px; cursor: pointer; letter-spacing: 0.08em; transition: all 0.2s; }
@@ -152,6 +162,19 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-mono);
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
+
+// ── Read-only share mode ──────────────────────────
+const IS_READONLY = new URLSearchParams(window.location.search).get("share") === "true";
+
+// ── Password protection (private mode only) ────────
+const PASSWORD_HASH = "ad7ad5f234369e85d0cc98f205d52d678f15eb07b67eccf7dfa7d41b81fab977"; // SHA-256 of password
+async function hashPassword(pw) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pw));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+function isAuthed() {
+  return IS_READONLY || sessionStorage.getItem("astro_auth") === "1";
+}
 
 // ── Constants ─────────────────────────────────────
 const CAMERAS = ["ASI 533MC Pro", "ASI 678MC"];
@@ -489,6 +512,50 @@ function AddTargetModal({ onSave, onClose, type }) {
   );
 }
 
+// ── Password screen ──────────────────────────────
+function PasswordScreen({ onUnlock }) {
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  const attempt = async () => {
+    if (!pw) return;
+    setChecking(true);
+    const hash = await hashPassword(pw);
+    if (hash === PASSWORD_HASH) {
+      sessionStorage.setItem("astro_auth", "1");
+      onUnlock();
+    } else {
+      setError(true);
+      setTimeout(() => setError(false), 600);
+    }
+    setChecking(false);
+  };
+
+  const handleKey = e => { if (e.key === "Enter") attempt(); };
+
+  return (
+    <div className="password-screen">
+      <div className="header-title">Astro<em>Journal</em></div>
+      <div className="password-box">
+        <p>Enter password to continue</p>
+        <input
+          className={`password-input ${error ? "error" : ""}`}
+          type="password"
+          value={pw}
+          onChange={e => { setPw(e.target.value); setError(false); }}
+          onKeyDown={handleKey}
+          autoFocus
+          placeholder="••••••••"
+        />
+        <button className="password-btn" onClick={attempt} disabled={checking}>
+          {checking ? <span className="spinner"/> : "Unlock"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Gallery ───────────────────────────────────────
 function Gallery({ targets, onSelect, onAdd }) {
   const [sort, setSort] = useState("date");
@@ -527,7 +594,7 @@ function Gallery({ targets, onSelect, onAdd }) {
             </div>
           );
         })}
-        <div className="add-btn" onClick={onAdd}>+ Add target</div>
+        {!IS_READONLY && <div className="add-btn" onClick={onAdd}>+ Add target</div>}
       </div>
       {targets.length===0&&<div className="empty-state"><div className="empty-state-icon">🔭</div><p>No captured targets yet.<br/>Add your first astrophotograph.</p></div>}
     </div>
@@ -583,7 +650,7 @@ function DetailView({ target, onBack, onAddSession, onEditSession, onDelete, onE
           <div className="detail-title"><TargetTitle name={target.name}/></div>
         </div>
         <span className="tag-captured">CAPTURED</span>
-        <button className="edit-btn" style={{marginLeft:"auto"}} onClick={()=>setEditTarget(true)}>Edit target</button>
+        {!IS_READONLY && <button className="edit-btn" style={{marginLeft:"auto"}} onClick={()=>setEditTarget(true)}>Edit target</button>}
       </div>
       <div className="detail-grid">
         <div className="detail-panel">
@@ -605,12 +672,12 @@ function DetailView({ target, onBack, onAddSession, onEditSession, onDelete, onE
       {target.facts&&<div className="facts-box">{target.facts}</div>}
       <div className="sessions-header">
         <div className="sessions-title">All sessions ({target.sessions?.length||0})</div>
-        <button className="add-btn-full" onClick={()=>setSessionModal(true)}>+ Add session</button>
+        {!IS_READONLY && <button className="add-btn-full" onClick={()=>setSessionModal(true)}>+ Add session</button>}
       </div>
       {(target.sessions||[]).map((s,i)=>(
         <div key={s.id} className="session-card">
           {getImg(s)&&<img src={getImg(s)} className="session-img" alt="" onClick={()=>setLightbox(getImg(s))}/>}
-          <button className="session-edit-btn" onClick={()=>setEditSession(s)}>Edit</button>
+          {!IS_READONLY && <button className="session-edit-btn" onClick={()=>setEditSession(s)}>Edit</button>}
           <div className="session-date">{fmtDate(s.date)} · Session {i+1}</div>
           <div className="data-row"><span className="data-label">Telescope</span><span className="data-value">{s.telescope||"—"}</span></div>
           <div className="data-row"><span className="data-label">Camera</span><span className="data-value">{s.camera||"—"}</span></div>
@@ -618,9 +685,7 @@ function DetailView({ target, onBack, onAddSession, onEditSession, onDelete, onE
           <div className="data-row"><span className="data-label">Filter</span><span className="data-value">{s.filter||"—"}</span></div>
         </div>
       ))}
-      <div style={{marginTop:20}}>
-        <button className="delete-btn" onClick={()=>onDelete(target.id)}>Delete target</button>
-      </div>
+      {!IS_READONLY && <div style={{marginTop:20}}><button className="delete-btn" onClick={()=>onDelete(target.id)}>Delete target</button></div>}
       {sessionModal&&<SessionModal saving={saving} onSave={handleSaveSession} onClose={()=>setSessionModal(false)}/>}
       {editSession&&<SessionModal saving={saving} initial={editSession} onSave={handleEditSession} onClose={()=>setEditSession(null)}/>}
       {editTarget&&<EditTargetModal target={target} saving={saving} onSave={handleEditTarget} onClose={()=>setEditTarget(false)}/>}
@@ -692,6 +757,7 @@ function WishDetail({ target, onBack, onDelete, onPromote, onEditTarget }) {
 
 // ── App root ──────────────────────────────────────
 function App() {
+  const [authed, setAuthed] = useState(isAuthed());
   const [targets, setTargets] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -776,6 +842,8 @@ function App() {
 
   const selTarget = tab==="gallery" ? targets.find(t=>t.id===selected) : wishlist.find(t=>t.id===selected);
 
+  if (!authed) return <PasswordScreen onUnlock={()=>setAuthed(true)}/>;
+
   if (loading) return (
     <div className="app">
       <div className="header"><div className="header-title">Astro<em>Journal</em></div></div>
@@ -787,9 +855,9 @@ function App() {
     <div className="app">
       <div className="header">
         <div className="header-title">Astro<em>Journal</em></div>
-        <div className="header-sub">{targets.length} captured · {wishlist.length} targets</div>
+        <div className="header-sub">{IS_READONLY ? "public gallery" : `${targets.length} captured · ${wishlist.length} targets`}</div>
       </div>
-      {!selected&&(
+      {!selected&&!IS_READONLY&&(
         <div className="tabs">
           <button className={`tab ${tab==="gallery"?"active":""}`} onClick={()=>setTab("gallery")}>Gallery</button>
           <button className={`tab ${tab==="wishlist"?"active":""}`} onClick={()=>setTab("wishlist")}>Wishlist</button>
@@ -799,8 +867,8 @@ function App() {
       {tab==="gallery"&&selected&&selTarget&&<DetailView target={selTarget} onBack={()=>setSelected(null)} onAddSession={handleAddSession} onEditSession={handleEditSession} onDelete={handleDeleteTarget} onEditTarget={handleEditTarget}/>}
       {tab==="wishlist"&&!selected&&<WishlistView items={wishlist} onAdd={()=>setAddModal("wishlist")} onSelect={setSelected}/>}
       {tab==="wishlist"&&selected&&selTarget&&<WishDetail target={selTarget} onBack={()=>setSelected(null)} onDelete={handleDeleteWish} onPromote={handlePromote} onEditTarget={handleEditTarget}/>}
-      {addModal==="captured"&&<AddTargetModal type="captured" onSave={handleSaveCaptured} onClose={()=>{setAddModal(null);setPromoteItem(null);}}/>}
-      {addModal==="wishlist"&&<AddTargetModal type="wishlist" onSave={handleSaveWish} onClose={()=>setAddModal(null)}/>}
+      {!IS_READONLY&&addModal==="captured"&&<AddTargetModal type="captured" onSave={handleSaveCaptured} onClose={()=>{setAddModal(null);setPromoteItem(null);}}/>}
+      {!IS_READONLY&&addModal==="wishlist"&&<AddTargetModal type="wishlist" onSave={handleSaveWish} onClose={()=>setAddModal(null)}/>}
       {toast&&<Toast msg={toast.msg} error={toast.error}/>}
     </div>
   );
