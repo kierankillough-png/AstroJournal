@@ -166,6 +166,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-mono);
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
@@ -175,15 +176,9 @@ const LOGO_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAIAAADw
 // ── Read-only share mode ──────────────────────────
 const IS_READONLY = new URLSearchParams(window.location.search).get("share") === "true";
 
-// ── Password protection (private mode only) ────────
-const PASSWORD_HASH = "ad7ad5f234369e85d0cc98f205d52d678f15eb07b67eccf7dfa7d41b81fab977"; // SHA-256 of password
-async function hashPassword(pw) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pw));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-function isAuthed() {
-  return IS_READONLY || localStorage.getItem("astro_auth") === "1";
-}
+// ── Sign-in (Supabase magic link) ─────────────────
+// Writes now require an authenticated session (enforced by RLS in the
+// database, not just by this page). Unlocking sends a one-tap email link.
 
 // ── Constants ─────────────────────────────────────
 const CAMERAS = ["ASI 533MC Pro", "ASI 678MC"];
@@ -193,10 +188,15 @@ const FILTERS = ["Optolong L-Pro", "Optolong L-Extreme", "IR/UV Cut Filter", "No
 // ── Supabase ──────────────────────────────────────
 const SB_URL = "https://qxulcmjmnxizyfamktlv.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4dWxjbWptbnhpenlmYW1rdGx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MTk5OTAsImV4cCI6MjA5MzQ5NTk5MH0.OZzvjyGWnZ71ylG_ATooNHDRhzl6AqDlujoFh7xqO5M";
-const sbH = { "Content-Type":"application/json", "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Prefer":"return=representation" };
+const sbAuth = supabase.createClient(SB_URL, SB_KEY);
+let sbToken = null;
+sbAuth.auth.getSession().then(({ data: { session } }) => { sbToken = session ? session.access_token : null; });
+sbAuth.auth.onAuthStateChange((_e, session) => { sbToken = session ? session.access_token : null; });
+
+function sbH() { return { "Content-Type":"application/json", "apikey":SB_KEY, "Authorization":`Bearer ${sbToken || SB_KEY}`, "Prefer":"return=representation" }; }
 
 async function sbFetch(path, method="GET", body=null) {
-  const opts = { method, headers: sbH };
+  const opts = { method, headers: sbH() };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(SB_URL + path, opts);
   if (!res.ok) throw new Error(await res.text());
@@ -522,22 +522,20 @@ function AddTargetModal({ onSave, onClose, type }) {
 }
 
 // ── Password screen ──────────────────────────────
-function PasswordScreen({ onUnlock }) {
-  const [pw, setPw] = useState("");
-  const [error, setError] = useState(false);
+function PasswordScreen() {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
 
   const attempt = async () => {
-    if (!pw) return;
-    setChecking(true);
-    const hash = await hashPassword(pw);
-    if (hash === PASSWORD_HASH) {
-      localStorage.setItem("astro_auth", "1");
-      onUnlock();
-    } else {
-      setError(true);
-      setTimeout(() => setError(false), 600);
-    }
+    if (!email.trim()) return;
+    setChecking(true); setError("");
+    const { error: err } = await sbAuth.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin + window.location.pathname },
+    });
+    if (err) setError(err.message); else setSent(true);
     setChecking(false);
   };
 
@@ -547,19 +545,26 @@ function PasswordScreen({ onUnlock }) {
     <div className="password-screen">
       <div className="header-title">Astro<em>Journal</em></div>
       <div className="password-box">
-        <p>Enter password to continue</p>
-        <input
-          className={`password-input ${error ? "error" : ""}`}
-          type="password"
-          value={pw}
-          onChange={e => { setPw(e.target.value); setError(false); }}
-          onKeyDown={handleKey}
-          autoFocus
-          placeholder="••••••••"
-        />
-        <button className="password-btn" onClick={attempt} disabled={checking}>
-          {checking ? <span className="spinner"/> : "Unlock"}
-        </button>
+        {sent ? (
+          <p>Sign-in link sent — check your inbox, then tap the link to unlock.</p>
+        ) : (
+          <React.Fragment>
+            <p>Enter your email for a sign-in link</p>
+            <input
+              className={`password-input ${error ? "error" : ""}`}
+              type="email"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setError(""); }}
+              onKeyDown={handleKey}
+              autoFocus
+              placeholder="you@example.com"
+            />
+            {error && <p style={{color:"#e87a6d",fontSize:12,marginTop:6}}>{error}</p>}
+            <button className="password-btn" onClick={attempt} disabled={checking}>
+              {checking ? <span className="spinner"/> : "Send link"}
+            </button>
+          </React.Fragment>
+        )}
       </div>
     </div>
   );
@@ -766,7 +771,15 @@ function WishDetail({ target, onBack, onDelete, onPromote, onEditTarget }) {
 
 // ── App root ──────────────────────────────────────
 function App() {
-  const [authed, setAuthed] = useState(isAuthed());
+  const [authed, setAuthed] = useState(IS_READONLY);
+  const [authReady, setAuthReady] = useState(IS_READONLY);
+
+  useEffect(()=>{
+    if (IS_READONLY) return;
+    sbAuth.auth.getSession().then(({ data: { session } }) => { setAuthed(!!session); setAuthReady(true); });
+    const { data: sub } = sbAuth.auth.onAuthStateChange((_e, session) => setAuthed(!!session));
+    return () => sub.subscription.unsubscribe();
+  },[]);
   const [targets, setTargets] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -851,7 +864,8 @@ function App() {
 
   const selTarget = tab==="gallery" ? targets.find(t=>t.id===selected) : wishlist.find(t=>t.id===selected);
 
-  if (!authed) return <PasswordScreen onUnlock={()=>setAuthed(true)}/>;
+  if (!authReady) return null;
+  if (!authed) return <PasswordScreen/>;
 
   if (loading) return (
     <div className="app">
@@ -869,7 +883,7 @@ function App() {
           <div className="header-handle"><a href="https://www.instagram.com/astromanc" target="_blank" rel="noopener noreferrer">@AstroManc</a></div>
         </div>
         <div className="header-sub">{IS_READONLY ? "public gallery" : `${targets.length} captured · ${wishlist.length} targets`}</div>
-        {!IS_READONLY && <button className="logout-btn" onClick={()=>{ localStorage.removeItem("astro_auth"); setAuthed(false); }}>Lock</button>}
+        {!IS_READONLY && <button className="logout-btn" onClick={()=>{ sbAuth.auth.signOut(); }}>Lock</button>}
       </div>
       {!selected&&!IS_READONLY&&(
         <div className="tabs">
