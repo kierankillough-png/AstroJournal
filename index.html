@@ -524,11 +524,12 @@ function AddTargetModal({ onSave, onClose, type }) {
 // ── Password screen ──────────────────────────────
 function PasswordScreen() {
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
 
-  const attempt = async () => {
+  const sendCode = async () => {
     if (!email.trim()) return;
     setChecking(true); setError("");
     const { error: err } = await sbAuth.auth.signInWithOtp({
@@ -539,29 +540,63 @@ function PasswordScreen() {
     setChecking(false);
   };
 
-  const handleKey = e => { if (e.key === "Enter") attempt(); };
+  const verifyCode = async () => {
+    const token = code.replace(/\s/g, "");
+    if (token.length < 6) { setError("Enter the 6-digit code from the email."); return; }
+    setChecking(true); setError("");
+    const { error: err } = await sbAuth.auth.verifyOtp({
+      email: email.trim(), token, type: "email",
+    });
+    // on success the auth listener flips the app to unlocked; nothing more to do here
+    if (err) { setError(err.message); setChecking(false); }
+  };
+
+  const resend = async () => { setCode(""); setSent(false); setError(""); };
 
   return (
     <div className="password-screen">
       <div className="header-title">Astro<em>Journal</em></div>
       <div className="password-box">
         {sent ? (
-          <p>Sign-in link sent — check your inbox, then tap the link to unlock.</p>
+          <React.Fragment>
+            <p>Enter the 6-digit code from your email</p>
+            <input
+              className={`password-input ${error ? "error" : ""}`}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              onChange={e => { setCode(e.target.value.replace(/[^0-9]/g, "")); setError(""); }}
+              onKeyDown={e => { if (e.key === "Enter") verifyCode(); }}
+              autoFocus
+              placeholder="123456"
+              style={{ letterSpacing: "0.4em", textAlign: "center", fontSize: 18 }}
+            />
+            {error && <p style={{color:"#e87a6d",fontSize:12,marginTop:6}}>{error}</p>}
+            <button className="password-btn" onClick={verifyCode} disabled={checking}>
+              {checking ? <span className="spinner"/> : "Unlock"}
+            </button>
+            <p style={{color:"var(--muted)",fontSize:11.5,marginTop:10,fontStyle:"italic"}}>
+              The email has both a code and a link &mdash; type the code here to stay in the app.
+              <span onClick={resend} style={{color:"var(--accent)",cursor:"pointer",marginLeft:5}}>Use a different email</span>
+            </p>
+          </React.Fragment>
         ) : (
           <React.Fragment>
-            <p>Enter your email for a sign-in link</p>
+            <p>Enter your email to sign in</p>
             <input
               className={`password-input ${error ? "error" : ""}`}
               type="email"
               value={email}
               onChange={e => { setEmail(e.target.value); setError(""); }}
-              onKeyDown={handleKey}
+              onKeyDown={e => { if (e.key === "Enter") sendCode(); }}
               autoFocus
               placeholder="you@example.com"
             />
             {error && <p style={{color:"#e87a6d",fontSize:12,marginTop:6}}>{error}</p>}
-            <button className="password-btn" onClick={attempt} disabled={checking}>
-              {checking ? <span className="spinner"/> : "Send link"}
+            <button className="password-btn" onClick={sendCode} disabled={checking}>
+              {checking ? <span className="spinner"/> : "Send code"}
             </button>
           </React.Fragment>
         )}
