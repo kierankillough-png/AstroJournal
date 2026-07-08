@@ -542,7 +542,7 @@ function PasswordScreen() {
 
   const verifyCode = async () => {
     const token = code.replace(/\s/g, "");
-    if (token.length < 6) { setError("Enter the 6-digit code from the email."); return; }
+    if (token.length < 6) { setError("Enter the code from the email."); return; }
     setChecking(true); setError("");
     const { error: err } = await sbAuth.auth.verifyOtp({
       email: email.trim(), token, type: "email",
@@ -559,18 +559,18 @@ function PasswordScreen() {
       <div className="password-box">
         {sent ? (
           <React.Fragment>
-            <p>Enter the 6-digit code from your email</p>
+            <p>Enter the code from your email</p>
             <input
               className={`password-input ${error ? "error" : ""}`}
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
-              maxLength={6}
+              maxLength={8}
               value={code}
               onChange={e => { setCode(e.target.value.replace(/[^0-9]/g, "")); setError(""); }}
               onKeyDown={e => { if (e.key === "Enter") verifyCode(); }}
               autoFocus
-              placeholder="123456"
+              placeholder="12345678"
               style={{ letterSpacing: "0.4em", textAlign: "center", fontSize: 18 }}
             />
             {error && <p style={{color:"#e87a6d",fontSize:12,marginTop:6}}>{error}</p>}
